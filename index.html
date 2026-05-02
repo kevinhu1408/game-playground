@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Game Playground - 游戏合集</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a12;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh}
+.header{text-align:center;padding:60px 20px 30px;background:linear-gradient(180deg,#1a1a2e 0%,#0a0a12 100%)}
+.header h1{font-size:48px;letter-spacing:6px;font-weight:900;background:linear-gradient(135deg,#ff4444,#ff8844,#44aaff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{color:rgba(255,255,255,.4);margin-top:8px;font-size:14px;letter-spacing:2px}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;max-width:1100px;margin:40px auto;padding:0 24px}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;transition:all .2s;cursor:pointer;text-decoration:none;color:#fff}
+.card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.07)}
+.card-img{height:180px;display:flex;align-items:center;justify-content:center;font-size:64px;position:relative;overflow:hidden}
+.card-img.fps{background:linear-gradient(135deg,#1a0a0a,#2a1515)}
+.card-img.dino{background:linear-gradient(135deg,#0a1a0a,#152a15)}
+.card-img.parkour{background:linear-gradient(135deg,#0a0a1a,#15152a)}
+.card-body{padding:16px 20px 20px}
+.card-body h2{font-size:20px;letter-spacing:2px;margin-bottom:6px}
+.card-body p{font-size:12px;color:rgba(255,255,255,.4);line-height:1.6}
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;margin-right:4px;margin-top:8px}
+.tag-fps{background:rgba(255,68,68,.15);color:#ff6666;border:1px solid rgba(255,68,68,.2)}
+.tag-survival{background:rgba(68,255,68,.15);color:#66ff66;border:1px solid rgba(68,255,68,.2)}
+.tag-parkour{background:rgba(68,136,255,.15);color:#6688ff;border:1px solid rgba(68,136,255,.2)}
+.tag-3d{background:rgba(255,170,34,.15);color:#ffaa44;border:1px solid rgba(255,170,34,.2)}
+.footer{text-align:center;padding:40px;color:rgba(255,255,255,.2);font-size:12px}
+</style>
+</head><body>
+<div class="header">
+  <h1>GAME PLAYGROUND</h1>
+  <p>游戏合集 — 点击进入游戏</p>
+</div>
+
+<div class="games">
+  <a class="card" href="games/tactical-fps.html">
+    <div class="card-img fps">🎯</div>
+    <div class="card-body">
+      <h2>无畏契约</h2>
+      <p>Valorant风格战术FPS射击游戏。20个英雄、独特技能、左轮手感、训练场模式。</p>
+      <span class="tag tag-fps">FPS</span>
+      <span class="tag tag-3d">3D</span>
+    </div>
+  </a>
+
+  <a class="card" href="games/jurassic-world.html">
+    <div class="card-img dino">🦖</div>
+    <div class="card-body">
+      <h2>侏罗纪世界</h2>
+      <p>恐龙岛生存探索。8种恐龙、采集制作、弓箭狩猎、建造系统、超大地图。</p>
+      <span class="tag tag-survival">生存</span>
+      <span class="tag tag-3d">3D</span>
+    </div>
+  </a>
+
+  <a class="card" href="games/parkour.html">
+    <div class="card-img parkour">🏃</div>
+    <div class="card-body">
+      <h2>极限跑酷</h2>
+      <p>Mirror's Edge风格跑酷。墙壁跑、二段跳、钩爪荡、滑铲、多关卡挑战。</p>
+      <span class="tag tag-parkour">跑酷</span>
+      <span class="tag tag-3d">3D</span>
+    </div>
+  </a>
+</div>
+
+<div class="footer">Game Playground &copy; 2026 — Built with Three.js</div>
+</body></html>

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>极限跑酷</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif;cursor:default}
+canvas{display:block}
+#ch{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:10;width:6px;height:6px;border-radius:50%;border:2px solid rgba(255,255,255,.5)}
+
+#hud{position:fixed;top:0;left:0;right:0;pointer-events:none;z-index:10;padding:16px}
+#speedBar{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);width:300px;pointer-events:none;z-index:10}
+#speedLabel{color:rgba(255,255,255,.4);font-size:10px;text-align:center;letter-spacing:2px}
+#speedOuter{width:100%;height:6px;background:rgba(255,255,255,.1);border-radius:3px;margin-top:3px}
+#speedFill{height:100%;border-radius:3px;background:linear-gradient(90deg,#00aaff,#00ffaa);width:0%;transition:width .1s}
+
+#timer{position:fixed;top:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:28px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.8);font-family:monospace;letter-spacing:2px}
+#checkpoint{position:fixed;top:52px;left:50%;transform:translateX(-50%);color:#ffd740;font-size:14px;letter-spacing:1px}
+
+#moves{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:10;display:flex;gap:8px}
+.move-key{padding:4px 10px;border:1px solid rgba(255,255,255,.2);border-radius:4px;color:rgba(255,255,255,.4);font-size:11px}
+.move-key.active{border-color:#00ffaa;color:#00ffaa;background:rgba(0,255,170,.1)}
+
+#combo{position:fixed;top:40%;right:30px;pointer-events:none;z-index:10;text-align:right}
+#comboText{color:#ff6600;font-size:32px;font-weight:900;opacity:0;transition:opacity .15s;text-shadow:0 0 15px rgba(255,100,0,.5)}
+#comboCount{color:#ffd740;font-size:16px}
+
+#msg{position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:36px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s;text-shadow:0 0 20px rgba(255,255,255,.4);letter-spacing:4px}
+
+#deathFade{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:20;background:#000;opacity:0;transition:opacity .3s}
+
+#overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#1a1a2e 0%,#0f3460 100%)}
+#overlay h1{font-size:52px;color:#fff;letter-spacing:6px;font-weight:900}
+#overlay .sub{color:#00ffaa;font-size:14px;letter-spacing:6px}
+#overlay p{color:#888;font-size:13px;margin-top:6px}
+#overlay .ctrls{display:grid;grid-template-columns:auto auto;gap:3px 16px;margin-top:14px;color:#aaa;font-size:13px}
+.ck{color:#00ffaa;font-weight:700}
+#overlay button{margin-top:24px;padding:14px 50px;font-size:18px;background:linear-gradient(135deg,#00aaff,#00ffaa);color:#000;border:none;cursor:pointer;font-weight:800;letter-spacing:3px;border-radius:6px}
+#overlay button:hover{transform:scale(1.05)}
+
+#endScreen{position:fixed;top:0;left:0;right:0;bottom:0;z-index:55;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.9)}
+#endScreen h1{font-size:44px;color:#00ffaa;letter-spacing:4px}
+#endScreen .stats{display:flex;gap:30px;margin-top:20px}
+#endScreen .st{text-align:center}
+#endScreen .sv{font-size:32px;color:#fff;font-weight:700}
+#endScreen .sl{font-size:11px;color:#888;margin-top:2px;letter-spacing:1px}
+#endScreen button{margin-top:20px;padding:10px 36px;font-size:16px;background:#00aaff;color:#000;border:none;cursor:pointer;border-radius:4px;font-weight:700;letter-spacing:2px}
+</style>
+</head>
+<body><a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;letter-spacing:1px;border:1px solid rgba(255,255,255,.15);cursor:pointer;font-family:sans-serif">← 返回主页</a>
+<div id="ch"></div>
+
+<div id="hud">
+  <div id="timer">0:00.00</div>
+  <div id="checkpoint">检查点: 0/0</div>
+</div>
+
+<div id="speedBar">
+  <div id="speedLabel">速度</div>
+  <div id="speedOuter"><div id="speedFill"></div></div>
+</div>
+
+<div id="moves">
+  <div class="move-key" id="mkJump">空格 跳跃</div>
+  <div class="move-key" id="mkSlide">C/Ctrl 滑行</div>
+  <div class="move-key" id="mkWall">靠墙 墙跑</div>
+  <div class="move-key" id="mkDash">Shift 冲刺</div>
+</div>
+
+<div id="combo"><div id="comboText"></div><div id="comboCount"></div></div>
+<div id="msg"></div>
+<div id="deathFade"></div>
+
+<div id="overlay">
+  <h1>极限跑酷</h1>
+  <div class="sub">PARKOUR MASTER</div>
+  <div class="ctrls">
+    <span class="ck">WASD</span><span>移动</span>
+    <span class="ck">鼠标</span><span>视角</span>
+    <span class="ck">空格</span><span>跳跃（空中可二段跳）</span>
+    <span class="ck">Ctrl</span><span>滑行（穿过低矮障碍）</span>
+    <span class="ck">Shift</span><span>冲刺加速</span>
+    <span class="ck">E</span><span>抓钩（朝准星方向）</span>
+    <span class="ck">R</span><span>重生</span>
+  </div>
+  <p>到达所有检查点，尽快跑到终点！</p>
+  <button id="startBtn">开始跑酷</button>
+</div>
+
+<div id="endScreen">
+  <h1>完成!</h1>
+  <div class="stats">
+    <div class="st"><div class="sv" id="eTime">0:00</div><div class="sl">用时</div></div>
+    <div class="st"><div class="sv" id="eCombo">0</div><div class="sl">最高连击</div></div>
+    <div class="st"><div class="sv" id="eTricks">0</div><div class="sl">技巧次数</div></div>
+  </div>
+  <button onclick="location.reload()">再来一次</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===== AUDIO =====
+let actx=null;
+function initAudio(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();}
+function snd(type){if(!actx)return;try{const t=actx.currentTime;
+if(type==='jump'){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(600,t+.08);g.gain.setValueAtTime(.08,t);g.gain.exponentialRampToValueAtTime(.001,t+.1);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.1);}
+else if(type==='land'){const n=actx.createBufferSource();const buf=actx.createBuffer(1,actx.sampleRate*.08,actx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;n.buffer=buf;const f=actx.createBiquadFilter();f.type='lowpass';f.frequency.value=500;const g=actx.createGain();g.gain.setValueAtTime(.1,t);g.gain.exponentialRampToValueAtTime(.001,t+.08);n.connect(f);f.connect(g);g.connect(actx.destination);n.start(t);n.stop(t+.08);}
+else if(type==='slide'){const n=actx.createBufferSource();const buf=actx.createBuffer(1,actx.sampleRate*.2,actx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;n.buffer=buf;const f=actx.createBiquadFilter();f.type='bandpass';f.frequency.value=1500;const g=actx.createGain();g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);n.connect(f);f.connect(g);g.connect(actx.destination);n.start(t);n.stop(t+.2);}
+else if(type==='dash'){const o=actx.createOscillator(),g=actx.createGain();o.type='sawtooth';o.frequency.setValueAtTime(200,t);o.frequency.exponentialRampToValueAtTime(800,t+.15);g.gain.setValueAtTime(.06,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.2);}
+else if(type==='wallrun'){const o=actx.createOscillator(),g=actx.createGain();o.type='triangle';o.frequency.value=250;g.gain.setValueAtTime(.04,t);g.gain.exponentialRampToValueAtTime(.001,t+.15);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.15);}
+else if(type==='hook'){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(800,t);o.frequency.exponentialRampToValueAtTime(1500,t+.1);g.gain.setValueAtTime(.08,t);g.gain.exponentialRampToValueAtTime(.001,t+.15);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.15);}
+else if(type==='cp'){[800,1000,1200].forEach((fr,i)=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=fr;g.gain.setValueAtTime(.08,t+i*.08);g.gain.exponentialRampToValueAtTime(.001,t+i*.08+.12);o.connect(g);g.connect(actx.destination);o.start(t+i*.08);o.stop(t+i*.08+.12);});}
+else if(type==='win'){[523,659,784,1047,1318].forEach((fr,i)=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=fr;g.gain.setValueAtTime(.1,t+i*.15);g.gain.exponentialRampToValueAtTime(.001,t+i*.15+.3);o.connect(g);g.connect(actx.destination);o.start(t+i*.15);o.stop(t+i*.15+.3);});}
+else if(type==='step'){const n=actx.createBufferSource();const buf=actx.createBuffer(1,actx.sampleRate*.04,actx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;n.buffer=buf;const f=actx.createBiquadFilter();f.type='lowpass';f.frequency.value=400;const g=actx.createGain();g.gain.setValueAtTime(.03,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);n.connect(f);f.connect(g);g.connect(actx.destination);n.start(t);n.stop(t+.04);}
+}catch(e){}}
+
+// ===== SCENE =====
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x1a2a4a);
+scene.fog=new THREE.Fog(0x1a2a4a,80,250);
+const camera=new THREE.PerspectiveCamera(80,innerWidth/innerHeight,.1,500);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.4;
+document.body.appendChild(renderer.domElement);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+// Lighting - neon city feel
+scene.add(new THREE.AmbientLight(0x667799,.7));
+scene.add(new THREE.HemisphereLight(0x88bbff,0x445533,.5));
+const sun=new THREE.DirectionalLight(0xfff5e0,1.5);sun.position.set(50,80,30);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);const sc=sun.shadow.camera;sc.left=-100;sc.right=100;sc.top=100;sc.bottom=-100;sc.far=200;
+scene.add(sun);
+
+// ===== LEVEL BUILDER =====
+const platforms=[];// {mesh, x,y,z, w,h,d, type}
+const checkpoints=[];
+const walls=[];// for wallrunning
+const hookPoints=[];
+
+const matFloor=new THREE.MeshStandardMaterial({color:0x2a2a3a,roughness:.8});
+const matWall=new THREE.MeshStandardMaterial({color:0x3a3a4a,roughness:.7});
+const matNeon1=new THREE.MeshStandardMaterial({color:0x00aaff,emissive:0x004466,roughness:.3});
+const matNeon2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x003322,roughness:.3});
+const matNeon3=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0x331100,roughness:.3});
+const matGlass=new THREE.MeshStandardMaterial({color:0x4488aa,transparent:true,opacity:.3,roughness:.1});
+const matDanger=new THREE.MeshStandardMaterial({color:0xff2222,emissive:0x440000,roughness:.5});
+const matBounce=new THREE.MeshStandardMaterial({color:0xffaa00,emissive:0x332200,roughness:.4});
+
+function addPlatform(x,y,z,w,h,d,mat,type){
+  const geo=new THREE.BoxGeometry(w,h,d);
+  const m=new THREE.Mesh(geo,mat||matFloor);
+  m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
+  platforms.push({mesh:m,x,y,z,w,h,d,type:type||'solid'});
+  return m;
+}
+
+function addWallRun(x,y,z,w,h,d,side){
+  const m=addPlatform(x,y,z,w,h,d,matWall,'wall');
+  walls.push({x,y,z,w,h,d,side,mesh:m});// side: 'left','right','front','back'
+}
+
+function addCheckpoint(x,y,z,index){
+  const geo=new THREE.TorusGeometry(2,.15,8,24);
+  const mat=new THREE.MeshBasicMaterial({color:0x00ffaa,transparent:true,opacity:.6});
+  const ring=new THREE.Mesh(geo,mat);
+  ring.position.set(x,y,z);ring.rotation.y=Math.PI/2;
+  scene.add(ring);
+  // Glow
+  const glow=new THREE.PointLight(0x00ffaa,.5,8);glow.position.set(x,y,z);scene.add(glow);
+  checkpoints.push({x,y,z,ring,glow,collected:false,index});
+}
+
+function addHookPoint(x,y,z){
+  const hG=new THREE.Group();
+  const metalM=new THREE.MeshStandardMaterial({color:0x888888,roughness:.3,metalness:.6});
+  const goldM=new THREE.MeshStandardMaterial({color:0xddaa22,roughness:.25,metalness:.7});
+  // 中心环(钩子挂点)
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.35,.06,10,16),goldM);
+  ring.rotation.x=Math.PI/2;hG.add(ring);
+  // 顶部支架(T形)
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.8,8),metalM);
+  bar.position.y=.5;hG.add(bar);
+  const crossBar=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.6,8),metalM);
+  crossBar.position.y=.9;crossBar.rotation.z=Math.PI/2;hG.add(crossBar);
+  // 挂钩(两侧弯钩)
+  for(const side of [-1,1]){
+    const hook=new THREE.Mesh(new THREE.TorusGeometry(.1,.025,6,8,Math.PI),metalM);
+    hook.position.set(side*.3,.9,0);hook.rotation.y=side*Math.PI/2;hG.add(hook);
+  }
+  // 链条(垂下来的几节)
+  for(let ci=0;ci<3;ci++){
+    const chain=new THREE.Mesh(new THREE.TorusGeometry(.06,.015,5,8),metalM);
+    chain.position.y=-.15-ci*.15;chain.rotation.x=ci%2?0:Math.PI/2;hG.add(chain);
+  }
+  // 发光指示圈
+  const glowRing=new THREE.Mesh(new THREE.TorusGeometry(.5,.02,6,16),new THREE.MeshBasicMaterial({color:0xffaa00,transparent:true,opacity:.5}));
+  glowRing.rotation.x=Math.PI/2;hG.add(glowRing);
+
+  hG.position.set(x,y,z);scene.add(hG);
+  const glow=new THREE.PointLight(0xffaa00,.4,8);glow.position.set(x,y,z);scene.add(glow);
+  hookPoints.push({x,y,z,mesh:hG,glow});
+}
+
+function addNeonStrip(x,y,z,w,d,mat){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,.08,d),mat||matNeon1);
+  m.position.set(x,y,z);scene.add(m);
+}
+
+// ===== BUILD LEVEL =====
+// Section 1: Starting area - basic platforms
+addPlatform(0,0,0,12,1,12,matFloor);// start
+addNeonStrip(0,.51,0,10,.3,matNeon2);
+
+addPlatform(0,0,-14,6,1,6);
+addPlatform(0,1,-24,5,1,5);
+addPlatform(0,2.5,-34,4,1,4);
+
+// Section 2: Wall run section
+addPlatform(0,2.5,-46,4,1,8);
+addWallRun(-4,5,-55,.5,8,20,'right');// left wall to run on
+addWallRun(4,5,-55,.5,8,20,'left');// right wall
+addPlatform(0,4,-68,6,1,6);
+addCheckpoint(0,6,-68,0);
+
+// Section 3: Slide under + jump over
+addPlatform(0,4,-80,8,1,16);
+// Low barrier to slide under
+addPlatform(0,5.8,-76,8,.5,1,matDanger,'obstacle');
+// High barrier to jump over
+addPlatform(0,4.8,-84,8,.6,1,matNeon3);
+addPlatform(0,4,-92,6,1,6);
+addCheckpoint(0,6,-92,1);
+
+// Section 4: Gap jumps with bounce pads
+addPlatform(-8,3,-100,4,1,4);
+addPlatform(-8,3,-100,4,.3,4,matBounce,'bounce');
+addPlatform(0,5,-108,5,1,5);
+addPlatform(8,5,-116,4,1,4);
+addPlatform(8,5,-116,4,.3,4,matBounce,'bounce');
+addPlatform(0,8,-124,6,1,6);
+addCheckpoint(0,10,-124,2);
+
+// Section 5: Hook point swinging
+addPlatform(0,8,-136,4,1,4);
+addHookPoint(0,14,-146);
+addHookPoint(5,15,-158);
+addHookPoint(-3,14,-170);
+addPlatform(0,10,-180,6,1,6);
+addCheckpoint(0,12,-180,3);
+
+// Section 6: Zigzag narrow platforms
+addPlatform(-6,10,-194,3,1,6);
+addPlatform(6,11,-204,3,1,6);
+addPlatform(-6,12,-214,3,1,6);
+addPlatform(6,13,-224,3,1,6);
+addPlatform(0,14,-234,3,1,6);
+addCheckpoint(0,16,-234,4);
+
+// Section 7: Vertical climbing - wall runs + jumps
+addPlatform(0,14,-244,8,1,4);
+addWallRun(-5,18,-250,.5,10,16,'right');
+addPlatform(-2,17,-252,3,1,3);
+addWallRun(5,21,-258,.5,10,16,'left');
+addPlatform(2,20,-260,3,1,3);
+addPlatform(0,22,-268,6,1,6);
+addCheckpoint(0,24,-268,5);
+
+// Section 8: Speed run - long straight with obstacles
+addPlatform(0,22,-290,6,1,30);
+addPlatform(0,23.8,-278,6,.5,1,matDanger,'obstacle');// slide
+addPlatform(0,22.8,-283,6,.6,1,matNeon3);// jump
+addPlatform(0,23.8,-288,6,.5,1,matDanger,'obstacle');// slide
+addPlatform(0,22.8,-293,6,.6,1,matNeon3);// jump
+addPlatform(0,23.8,-298,6,.5,1,matDanger,'obstacle');// slide
+
+// Section 9: Final descent - 下坡冲刺
+addPlatform(0,20,-310,6,1,6);
+addPlatform(4,18,-318,4,1,4);
+addPlatform(-4,16,-326,4,1,4);
+addPlatform(0,14,-334,4,1,4);
+addPlatform(4,12,-342,4,1,4);
+addPlatform(-4,10,-350,4,1,4);
+addPlatform(0,8,-358,6,1,6);
+addCheckpoint(0,10,-358,6);
+
+// FINISH - 大平台终点
+addPlatform(0,8,-372,16,1,16,matNeon2);
+addNeonStrip(-6,8.51,-372,.3,14,matNeon1);
+addNeonStrip(6,8.51,-372,.3,14,matNeon1);
+const finishLight=new THREE.PointLight(0x00ffaa,1,15);finishLight.position.set(0,11,-372);scene.add(finishLight);
+
+// Background buildings (远离跑道)
+for(let i=0;i<30;i++){
+  const bw=4+Math.random()*8,bh=10+Math.random()*50,bd=4+Math.random()*8;
+  const bz=-Math.random()*400;
+  const side=Math.random()>.5?1:-1;
+  const bx=side*(80+Math.random()*60); // 最近80米，不会挡路
+  const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd),new THREE.MeshLambertMaterial({color:0x1a1a2a}));
+  m.position.set(bx,bh/2,bz);scene.add(m);
+  if(Math.random()>.5){
+    const ns=new THREE.Mesh(new THREE.BoxGeometry(bw+.1,.15,bd+.1),[matNeon1,matNeon2,matNeon3][Math.floor(Math.random()*3)]);
+    ns.position.set(m.position.x,bh*.3+Math.random()*bh*.4,m.position.z);scene.add(ns);
+  }
+}
+
+// Ground below (death zone)
+const deathFloor=new THREE.Mesh(new THREE.PlaneGeometry(400,500),new THREE.MeshBasicMaterial({color:0x0a0a15}));
+deathFloor.rotation.x=-Math.PI/2;deathFloor.position.set(0,-10,-180);scene.add(deathFloor);
+
+// ===== PLAYER STATE =====
+let state='menu';
+const pos=new THREE.Vector3(0,2,0);
+let yaw=0,pitch=0,vy=0;
+let grounded=false,canDoubleJump=true,sliding=false,wallRunning=false,wallRunSide=0,wallRunTimer=0,jumpCount=0;
+let dashing=false,dashTimer=0,dashCooldown=0;
+let hooking=false,hookTarget=null,hookTimer=0;
+let speed=0,maxSpeed=12,sprintSpeed=18;
+let combo=0,maxCombo=0,tricks=0;
+let comboTimer=0;
+let timer=0,finished=false;
+let currentLevel=1;
+let cpCollected=0;
+let respawnPos=new THREE.Vector3(0,2,0);
+let bobPh=0;
+const keys2={};
+let pointerLocked=false;
+const GRAVITY=-25,JUMP=10,DOUBLE_JUMP=9,WALL_JUMP=7;
+
+function showMsg(t,dur){const m=document.getElementById('msg');m.textContent=t;m.style.opacity='1';setTimeout(()=>m.style.opacity='0',dur||2000);}
+
+function addCombo(name){
+  combo++;tricks++;comboTimer=2;
+  if(combo>maxCombo)maxCombo=combo;
+  document.getElementById('comboText').textContent=name+'!';
+  document.getElementById('comboText').style.opacity='1';
+  document.getElementById('comboCount').textContent='x'+combo+' 连击';
+}
+
+let respawnSafe=0,jumpGuard=0;
+function die(){
+  document.getElementById('deathFade').style.opacity='1';
+  setTimeout(()=>{
+    // 找最近平台顶部直接站上去
+    let landY=respawnPos.y;
+    for(const p of platforms){
+      const ptop=p.y+p.h/2;
+      if(Math.abs(respawnPos.x-p.x)<p.w/2+1&&Math.abs(respawnPos.z-p.z)<p.d/2+1){
+        if(ptop<respawnPos.y+3)landY=ptop+.02;
+      }
+    }
+    pos.set(respawnPos.x,landY,respawnPos.z);vy=0;speed=0;combo=0;
+    sliding=false;wallRunning=false;hooking=false;dashing=false;
+    grounded=true;respawnSafe=1;
+    document.getElementById('deathFade').style.opacity='0';
+  },400);
+}
+
+// ===== INPUT =====
+document.addEventListener('keydown',e=>{keys2[e.code]=true;
+  if(state!=='playing')return;
+  if(e.code==='KeyR')die();
+  if(e.code==='KeyE')tryHook();
+});
+document.addEventListener('keyup',e=>{keys2[e.code]=false;});
+document.addEventListener('mousemove',e=>{
+  if(state!=='playing'||!pointerLocked)return;
+  yaw-=e.movementX*.002;pitch-=e.movementY*.002;
+  pitch=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,pitch));
+});
+document.addEventListener('mousedown',()=>{
+  if(!pointerLocked)try{renderer.domElement.requestPointerLock();}catch(ex){}
+});
+document.addEventListener('pointerlockchange',()=>{pointerLocked=!!document.pointerLockElement;});
+
+function tryHook(){
+  if(hooking)return;
+  // Find nearest hook point in view
+  const fwd=new THREE.Vector3(0,0,-1);
+  fwd.applyAxisAngle(new THREE.Vector3(1,0,0),pitch);
+  fwd.applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+  let best=null,bestD=999;
+  for(const hp of hookPoints){
+    const toHP=new THREE.Vector3(hp.x-pos.x,hp.y-pos.y,hp.z-pos.z);
+    const d=toHP.length();if(d>25||d<2)continue;
+    toHP.normalize();
+    const dot=fwd.dot(toHP);
+    if(dot>.5&&d<bestD){bestD=d;best=hp;}
+  }
+  if(best){
+    hooking=true;hookTarget=best;hookTimer=0;
+    snd('hook');addCombo('抓钩');
+  }
+}
+
+// ===== PLATFORM COLLISION =====
+function checkPlatformCollision(){
+  grounded=false;
+  const pw=.3,ph=1.7;// player width, height
+
+  for(const p of platforms){
+    const px=p.x-p.w/2,py=p.y-p.h/2,pz=p.z-p.d/2;
+    const px2=p.x+p.w/2,py2=p.y+p.h/2,pz2=p.z+p.d/2;
+
+    // Check if player overlaps
+    if(pos.x+pw>px&&pos.x-pw<px2&&pos.z+pw>pz&&pos.z-pw<pz2){
+      // Vertical check
+      // Landing on top OR standing on top
+      if(pos.y>=py2-.2&&pos.y<=py2+.5&&jumpGuard<=0){
+        if(vy<=0){
+          if(p.type==='bounce'){
+            vy=16;snd('jump');addCombo('弹跳');
+          }else{
+            pos.y=py2+.01;vy=0;grounded=true;canDoubleJump=true;jumpCount=0;
+          }
+        }
+      }
+      // Head bump (only if actually under the platform)
+      if(pos.x+pw>px&&pos.x-pw<px2&&pos.z+pw>pz&&pos.z-pw<pz2&&
+         pos.y+ph>py&&pos.y+ph<py2&&pos.y<py){
+        pos.y=py-ph-.01;if(vy>0)vy=0;
+      }
+    }
+
+    // Horizontal push (only when player feet are INSIDE the platform height, not above it)
+    if(pos.y>py&&pos.y<py2-.1&&pos.z+pw>pz&&pos.z-pw<pz2){
+      if(pos.x>px-.5&&pos.x<px+.5&&pos.x<p.x){pos.x=px-pw-.01;}
+      if(pos.x<px2+.5&&pos.x>px2-.5&&pos.x>p.x){pos.x=px2+pw+.01;}
+    }
+    if(pos.y>py&&pos.y<py2-.1&&pos.x+pw>px&&pos.x-pw<px2){
+      if(pos.z>pz-.5&&pos.z<pz+.5&&pos.z<p.z){pos.z=pz-pw-.01;}
+      if(pos.z<pz2+.5&&pos.z>pz2-.5&&pos.z>p.z){pos.z=pz2+pw+.01;}
+    }
+  }
+}
+
+// Wall run check
+function checkWallRun(){
+  if(grounded||wallRunning)return;
+  for(const w of walls){
+    const dist=Math.abs(w.side==='left'||w.side==='right'?pos.x-w.x:pos.z-w.z);
+    const inRange=pos.y>w.y-w.h/2&&pos.y<w.y+w.h/2;
+    const inDepth=w.side==='left'||w.side==='right'?
+      (pos.z>w.z-w.d/2&&pos.z<w.z+w.d/2):
+      (pos.x>w.x-w.w/2&&pos.x<w.x+w.w/2);
+    if(dist<1.5&&inRange&&inDepth&&vy<2){
+      wallRunning=true;wallRunTimer=1.2;wallRunSide=w.side==='left'?1:-1;
+      vy=3;canDoubleJump=true;
+      snd('wallrun');addCombo('墙跑');
+      break;
+    }
+  }
+}
+
+// ===== START =====
+document.getElementById('startBtn').addEventListener('click',()=>{
+  initAudio();state='playing';
+  document.getElementById('overlay').style.display='none';
+  document.body.style.cursor='none';
+  renderer.domElement.requestPointerLock();
+  document.getElementById('checkpoint').textContent=`检查点: 0/${checkpoints.length}`;
+  showMsg('出发!',1500);
+});
+
+function loadLevel(lvl){
+  // Clear old level objects
+  platforms.forEach(p=>scene.remove(p.mesh));platforms.length=0;
+  checkpoints.forEach(c=>{scene.remove(c.ring);scene.remove(c.glow);});checkpoints.length=0;
+  wallRunSurfaces.forEach(w=>scene.remove(w.mesh));wallRunSurfaces.length=0;
+  hookPoints.forEach(h=>{scene.remove(h.mesh);scene.remove(h.glow);});hookPoints.length=0;
+  if(window._portal){scene.remove(window._portal);window._portal=null;}
+  if(window._hookLine){scene.remove(window._hookLine);window._hookLine=null;}
+
+  // Reset state
+  finished=false;cpCollected=0;timer=0;
+  sliding=false;wallRunning=false;hooking=false;dashing=false;
+  jumpCount=0;speed=0;combo=0;maxCombo=0;tricks=0;
+
+  if(lvl===2)buildLevel2();
+
+  // 找起点平台顶部，把玩家放上去
+  let startY=2;
+  for(const p of platforms){
+    if(Math.abs(p.x)<p.w/2+1&&Math.abs(p.z)<p.d/2+1){
+      const ptop=p.y+p.h/2;
+      if(ptop>startY-2)startY=ptop+.05;
+    }
+  }
+  pos.set(0,startY,0);vy=0;grounded=true;respawnSafe=2;respawnPos.set(0,startY,0);
+
+  showMsg('第 '+lvl+' 关',2000);
+  try{renderer.domElement.requestPointerLock();}catch(e){}
+  document.getElementById('checkpoint').textContent='检查点: 0/'+checkpoints.length;
+}
+
+function buildLevel2(){
+  // Level 2: Ice Theme - 冰雪跑酷
+  // Starting platform
+  addPlatform(0,0,0,12,1,12);
+
+  // Section 1: Zigzag jumps
+  addPlatform(5,1,-10,4,1,4);
+  addPlatform(-5,2,-20,4,1,4);
+  addPlatform(5,3,-30,4,1,4);
+  addPlatform(-5,4,-40,4,1,4);
+  addPlatform(0,5,-50,5,1,5);
+  addCheckpoint(0,6,-50,0);
+
+  // Section 2: Double wall run corridor
+  addPlatform(0,5,-58,4,1,4);
+  addWallRun(-4,9,-70,.5,10,20,'right');
+  addWallRun(4,9,-70,.5,10,20,'left');
+  addPlatform(0,7,-82,4,1,4);
+  addCheckpoint(0,8,-82,1);
+
+  // Section 3: Bounce pad gauntlet
+  addPlatform(0,7,-90,4,1,4,matBounce,'bounce');
+  addPlatform(6,9,-98,3,1,3);
+  addPlatform(-6,9,-106,3,1,3);
+  addPlatform(0,9,-114,3,1,3,matBounce,'bounce');
+  addPlatform(0,12,-124,5,1,5);
+  addCheckpoint(0,13,-124,2);
+
+  // Section 4: Hook point chain
+  addPlatform(0,12,-132,4,1,4);
+  addHookPoint(4,16,-142);
+  addHookPoint(-4,17,-154);
+  addHookPoint(0,16,-166);
+  addPlatform(0,13,-176,5,1,5);
+  addCheckpoint(0,14,-176,3);
+
+  // Section 5: Narrow beam maze
+  addPlatform(0,13,-184,1,1,12);
+  addPlatform(4,13,-196,12,1,1);
+  addPlatform(8,13,-204,1,1,12);
+  addPlatform(4,13,-216,12,1,1);
+  addPlatform(0,13,-224,5,1,5);
+  addCheckpoint(0,14,-224,4);
+
+  // Section 6: Descending spiral
+  for(let i=0;i<8;i++){
+    const a=i*.8;
+    const px=Math.cos(a)*8;
+    const pz=-234-i*6;
+    const py=13-i*1.2;
+    addPlatform(px,py,pz,3,1,3);
+  }
+  addPlatform(0,3,-286,6,1,6);
+  addCheckpoint(0,4,-286,5);
+
+  // FINISH
+  addPlatform(0,3,-300,14,1,14,matNeon2);
+  addCheckpoint(0,4,-300,6);
+}
+
+// ===== GAME LOOP =====
+const clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.04);
+
+  if(state==='menu'){
+    const t=Date.now()*.0003;
+    camera.position.set(Math.sin(t)*15,8,Math.cos(t)*15-20);
+    camera.lookAt(0,3,-30);
+    // Rotate checkpoints
+    checkpoints.forEach(c=>c.ring.rotation.y+=dt*2);
+    hookPoints.forEach(h=>h.mesh.rotation.y+=dt*3);
+    renderer.render(scene,camera);return;
+  }
+
+  if(!finished)timer+=dt;
+
+  // === MOVEMENT ===
+  const sprint=keys2['ShiftLeft']||keys2['ShiftRight'];
+  const moveSpeed=(sprint?sprintSpeed:maxSpeed)*(sliding?.6:1);
+  const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  const mv=new THREE.Vector3();
+  if(keys2['KeyW'])mv.add(fwd);if(keys2['KeyS'])mv.sub(fwd);
+  if(keys2['KeyD'])mv.add(right);if(keys2['KeyA'])mv.sub(right);
+  if(mv.length()>0)mv.normalize().multiplyScalar(moveSpeed*dt);
+
+  if(sprint&&grounded&&dashCooldown<=0&&!dashing){
+    dashing=true;dashTimer=.2;dashCooldown=1;snd('dash');
+    if(mv.length()>0)addCombo('冲刺');
+  }
+  if(dashing){dashTimer-=dt;mv.multiplyScalar(2.5);if(dashTimer<=0)dashing=false;}
+  dashCooldown-=dt;
+
+  // Hook
+  if(hooking&&hookTarget){
+    hookTimer+=dt;
+    const toHook=new THREE.Vector3(hookTarget.x-pos.x,hookTarget.y-pos.y,hookTarget.z-pos.z);
+    const d=toHook.length();
+    if(d<2||hookTimer>2){
+      hooking=false;vy=8;canDoubleJump=true;jumpCount=0;
+      if(window._hookLine){scene.remove(window._hookLine);window._hookLine=null;}
+    }else{
+      toHook.normalize();pos.addScaledVector(toHook,25*dt);vy=0;
+      // 绳子
+      if(window._hookLine)scene.remove(window._hookLine);
+      const ropeGeo=new THREE.BufferGeometry().setFromPoints([pos.clone(),new THREE.Vector3(hookTarget.x,hookTarget.y,hookTarget.z)]);
+      window._hookLine=new THREE.Line(ropeGeo,new THREE.LineBasicMaterial({color:0xffaa22,linewidth:2}));
+      scene.add(window._hookLine);
+    }
+  }else if(window._hookLine){scene.remove(window._hookLine);window._hookLine=null;}
+
+  if(!hooking){
+    pos.x+=mv.x;pos.z+=mv.z;
+
+    // Wall running
+    if(wallRunning){
+      wallRunTimer-=dt;vy=Math.max(vy-5*dt,0);
+      if(wallRunTimer<=0||grounded){wallRunning=false;}
+      // Wall jump
+      if(keys2['Space']&&wallRunTimer>0){
+        vy=WALL_JUMP;wallRunning=false;respawnSafe=0;jumpGuard=.15;canDoubleJump=true;jumpCount=0;
+        canDoubleJump=true;
+        snd('jump');addCombo('墙跳');
+      }
+    }else{
+      if(jumpGuard>0)jumpGuard-=dt;
+      if(respawnSafe>0){respawnSafe-=dt;vy=0;}else vy+=GRAVITY*dt;
+    }
+
+    // Jump (用jumpCount计数：0=可跳，1=已跳一次可二段跳，2=用完)
+    if(keys2['Space']){
+      if(grounded){
+        vy=JUMP;grounded=false;respawnSafe=0;jumpGuard=.15;
+        jumpCount=1;snd('jump');addCombo('跳跃');
+      }else if(jumpCount<2&&!wallRunning){
+        vy=DOUBLE_JUMP;jumpCount=2;respawnSafe=0;
+        snd('jump');addCombo('二段跳');
+      }
+      keys2['Space']=false;
+    }
+
+    // Slide
+    sliding=keys2['ControlLeft']||keys2['ControlRight']||keys2['KeyC'];
+    if(sliding&&grounded)snd('slide');
+
+    pos.y+=vy*dt;
+
+    // Collision
+    checkPlatformCollision();
+    if(!grounded&&!wallRunning)checkWallRun();
+  }
+
+  // Speed
+  speed=Math.sqrt(mv.x*mv.x+mv.z*mv.z)/dt;
+
+  // Death by falling
+  if(pos.y<-15&&respawnSafe<=0)die();
+
+  // Camera
+  const eyeH=sliding?0.5:1.5;
+  camera.position.set(pos.x,pos.y+eyeH,pos.z);
+  camera.rotation.set(0,0,0);camera.rotateY(yaw);camera.rotateX(pitch);
+  // Tilt during wall run
+  // 墙壁跑倾斜(平滑过渡)
+  const targetTilt=wallRunning?wallRunSide*.12:0;
+  if(!window._camTilt)window._camTilt=0;
+  window._camTilt+=(targetTilt-window._camTilt)*.1;
+  camera.rotateZ(window._camTilt);
+  // FOV with speed
+  camera.fov=80+(sprint?10:0)+(dashing?15:0);camera.updateProjectionMatrix();
+
+  // Footsteps
+  if(grounded&&(keys2['KeyW']||keys2['KeyS']||keys2['KeyA']||keys2['KeyD'])){
+    bobPh+=dt*(sprint?14:9);
+    if(Math.floor(bobPh/Math.PI)!==Math.floor((bobPh-dt*9)/Math.PI))snd('step');
+  }
+
+  // Combo timer
+  if(comboTimer>0){comboTimer-=dt;if(comboTimer<=0){combo=0;document.getElementById('comboText').style.opacity='0';document.getElementById('comboCount').textContent='';}}
+
+  // Checkpoints
+  for(const cp of checkpoints){
+    if(cp.collected)continue;
+    cp.ring.rotation.x+=dt*2;
+    const d=pos.distanceTo(new THREE.Vector3(cp.x,cp.y,cp.z));
+    if(d<3){
+      cp.collected=true;cpCollected++;
+      cp.ring.material.color.setHex(0x888888);cp.ring.material.opacity=.2;
+      cp.glow.intensity=0;
+      // 找检查点下方最近的平台顶部
+      let bestY=cp.y+3;
+      for(const p of platforms){
+        const ptop=p.y+p.h/2;
+        if(Math.abs(cp.x-p.x)<p.w/2+1&&Math.abs(cp.z-p.z)<p.d/2+1&&ptop<=cp.y+2){
+          bestY=ptop+2;
+        }
+      }
+      respawnPos.set(cp.x,bestY,cp.z);
+      snd('cp');showMsg('检查点 '+(cp.index+1)+'/'+checkpoints.length);
+      document.getElementById('checkpoint').textContent=`检查点: ${cpCollected}/${checkpoints.length}`;
+    }
+  }
+
+  // Hook point animation
+  hookPoints.forEach(h=>{h.mesh.rotation.y+=dt*3;h.mesh.position.y=h.y+Math.sin(Date.now()*.003)*.3;});
+
+  // Finish check
+  if(!finished&&cpCollected>=checkpoints.length){
+    const fd=Math.sqrt(pos.x**2+(pos.z+372)**2);
+    if(fd<10&&pos.y>6){
+      finished=true;snd('win');
+      showMsg('关卡完成!',2000);
+      // 生成传送门
+      if(!window._portal){
+        const portalG=new THREE.Group();
+        // 外圈
+        const ring1=new THREE.Mesh(new THREE.TorusGeometry(2,.15,12,24),new THREE.MeshBasicMaterial({color:0x44ffaa}));
+        portalG.add(ring1);
+        // 内圈旋转
+        const ring2=new THREE.Mesh(new THREE.TorusGeometry(1.5,.1,10,20),new THREE.MeshBasicMaterial({color:0x22ddff}));
+        portalG.add(ring2);
+        // 中心漩涡
+        const vortex=new THREE.Mesh(new THREE.CircleGeometry(1.5,20),new THREE.MeshBasicMaterial({color:0x115533,transparent:true,opacity:.6,side:THREE.DoubleSide}));
+        portalG.add(vortex);
+        // 粒子光点
+        for(let pi=0;pi<8;pi++){
+          const p=new THREE.Mesh(new THREE.SphereGeometry(.08,6,4),new THREE.MeshBasicMaterial({color:0x88ffcc}));
+          const a=pi/8*Math.PI*2;p.position.set(Math.cos(a)*1.8,Math.sin(a)*1.8,0);
+          portalG.add(p);
+        }
+        portalG.position.set(0,11,-372);
+        portalG.rotation.x=Math.PI/2*.3;
+        scene.add(portalG);
+        window._portal=portalG;
+        window._portalReady=false;
+        setTimeout(()=>{window._portalReady=true;showMsg('传送门已开启!<br><span style="font-size:16px">走进传送门前往下一关</span>',3000);},2000);
+      }
+    }
+  }
+  // 传送门动画+进入检测
+  if(window._portal){
+    window._portal.rotation.z+=dt*2;
+    window._portal.children[1].rotation.z-=dt*3;
+    // 粒子旋转
+    window._portal.children.forEach((c,i)=>{if(i>2)c.position.y+=Math.sin(Date.now()*.005+i)*.003;});
+    // 走进传送门
+    if(window._portalReady){
+      const pd=pos.distanceTo(window._portal.position);
+      if(pd<3){
+        showMsg('传送中...',1500);
+        window._portalReady=false;
+        setTimeout(()=>{
+          if(currentLevel<2){
+            currentLevel++;
+            loadLevel(currentLevel);
+          }else{
+            if(document.pointerLockElement)document.exitPointerLock();
+            document.body.style.cursor='default';
+            document.getElementById('eTime').textContent=formatTime(timer);
+            document.getElementById('eCombo').textContent=maxCombo;
+            document.getElementById('eTricks').textContent=tricks;
+            document.getElementById('endScreen').style.display='flex';
+          }
+        },1500);
+      }
+    }
+  }
+
+  // HUD
+  document.getElementById('timer').textContent=formatTime(timer);
+  document.getElementById('speedFill').style.width=Math.min(100,speed/sprintSpeed*100)+'%';
+  // Move indicators
+  document.getElementById('mkJump').className='move-key'+(!grounded?' active':'');
+  document.getElementById('mkSlide').className='move-key'+(sliding?' active':'');
+  document.getElementById('mkWall').className='move-key'+(wallRunning?' active':'');
+  document.getElementById('mkDash').className='move-key'+(dashing?' active':'');
+
+  renderer.render(scene,camera);
+}
+
+function formatTime(s){const m=Math.floor(s/60),sec=Math.floor(s%60),ms=Math.floor((s%1)*100);return`${m}:${sec.toString().padStart(2,'0')}.${ms.toString().padStart(2,'0')}`;}
+
+animate();
+</script>
+</body>
+</html>

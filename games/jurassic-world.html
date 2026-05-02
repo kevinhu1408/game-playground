@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>侏罗纪世界 — 恐龙岛生存</title>
+<style>
+body{margin:0;overflow:hidden;background:#000;font-family:'Segoe UI',sans-serif;cursor:default}
+#hud{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10}
+#hotbar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:10}
+.hb-slot{width:52px;height:52px;background:rgba(0,0,0,.65);border:2px solid rgba(255,255,255,.12);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;cursor:pointer;transition:all .1s}
+.hb-slot.active{border-color:#88cc44;background:rgba(136,204,68,.15)}
+.hb-slot .hb-ic{font-size:20px}
+.hb-slot .hb-nm{font-size:8px;color:#aaa;max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-slot .hb-qt{position:absolute;bottom:2px;right:4px;font-size:9px;color:#ccc}
+.hb-slot .hb-key{position:absolute;top:1px;left:3px;font-size:9px;color:rgba(255,255,255,.35)}
+.hb{background:rgba(0,0,0,.6);padding:6px 14px;border-radius:4px;color:#fff;font-size:13px;letter-spacing:1px}
+.hb span{font-weight:700}
+#hp .v{color:#3ddc84}#food .v{color:#ffaa33}#water .v{color:#44aaff}
+#inv{position:fixed;inset:0;z-index:40;display:none;background:rgba(0,0,0,.85);cursor:default}
+#invInner{max-width:800px;margin:40px auto;display:flex;gap:20px;color:#fff}
+#invLeft,#invRight{flex:1;background:rgba(255,255,255,.05);border-radius:8px;padding:16px}
+#invLeft h3,#invRight h3{margin:0 0 10px;font-size:16px;color:#88cc44;letter-spacing:2px}
+.inv-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.inv-slot{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:8px;text-align:center;font-size:11px;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.inv-slot .ic{font-size:22px}
+.inv-slot .ct{color:#aaa;font-size:10px}
+.craft-item{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:8px 12px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all .12s}
+.craft-item:hover{background:rgba(136,204,68,.15);border-color:rgba(136,204,68,.3)}
+.craft-item.disabled{opacity:.4;cursor:default}
+.craft-item .cn{font-size:13px}.craft-item .cr{font-size:10px;color:#aaa}
+.craft-item .cb{padding:3px 10px;background:#448822;border:none;color:#fff;border-radius:3px;font-size:11px;cursor:pointer}
+.craft-item.disabled .cb{background:#555}
+#invClose{position:absolute;top:15px;right:20px;color:#fff;font-size:24px;cursor:pointer;z-index:41}
+.res-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.res-item{background:rgba(255,255,255,.08);padding:4px 8px;border-radius:3px;font-size:11px}
+#msg{position:fixed;top:30%;left:50%;transform:translateX(-50%);color:#fff;font-size:22px;text-align:center;opacity:0;transition:opacity .3s;z-index:10;text-shadow:0 2px 8px rgba(0,0,0,.8);pointer-events:none}
+#crosshair{position:fixed;top:50%;left:50%;width:6px;height:6px;margin:-3px;border-radius:50%;border:1.5px solid rgba(255,255,255,.6);z-index:10;pointer-events:none}
+#overlay{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,10,5,.95)}
+#overlay h1{font-size:48px;color:#44dd88;letter-spacing:5px;font-weight:800}
+#overlay .sub{font-size:14px;color:#88aa66;letter-spacing:3px}
+#overlay p{font-size:12px;color:rgba(255,255,255,.4);margin-top:4px}
+.pbtn{padding:14px 40px;font-size:18px;background:#228844;color:#fff;border:none;cursor:pointer;border-radius:6px;margin-top:18px;letter-spacing:3px;transition:all .15s;z-index:999;position:relative}
+.pbtn:hover{background:#33aa55;transform:scale(1.05)}
+#minimap{position:fixed;top:15px;right:15px;width:160px;height:160px;border-radius:50%;border:2px solid rgba(255,255,255,.15);background:rgba(0,30,10,.6);z-index:10;overflow:hidden}
+#minimap canvas{width:100%;height:100%}
+#dinoInfo{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:16px;opacity:0;transition:opacity .3s;z-index:10;pointer-events:none;background:rgba(0,0,0,.5);padding:8px 16px;border-radius:6px}
+#dayTime{position:fixed;top:15px;left:15px;color:rgba(255,255,255,.5);font-size:12px;z-index:10}
+</style>
+</head><body><a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;letter-spacing:1px;border:1px solid rgba(255,255,255,.15);cursor:pointer;font-family:sans-serif">← 返回主页</a>
+<div id="underwaterFx" style="position:fixed;inset:0;background:rgba(10,40,80,.35);pointer-events:none;z-index:5;display:none"></div>
+<div id="crosshair"></div>
+<div id="hotbar"></div>
+<div id="hud">
+  <div class="hb" id="hp">❤️ <span class="v">100</span></div>
+  <div class="hb" id="food">🍖 <span class="v">100</span></div>
+  <div class="hb" id="water">💧 <span class="v">100</span></div>
+</div>
+<div id="msg"></div>
+<div id="dinoInfo"></div>
+<div id="dayTime">☀️ 白天</div>
+<div id="minimap"><canvas id="mmCanvas" width="160" height="160"></canvas></div>
+<div id="inv"><span id="invClose" onclick="toggleInv()">✕</span><div id="invInner">
+<div id="invLeft"><h3>🎒 背包</h3><div class="res-bar" id="resBar"></div><div class="inv-grid" id="invGrid"></div></div>
+<div id="invRight"><h3>🔨 制作</h3><div id="craftList"></div></div>
+</div></div>
+<div id="overlay">
+  <h1>侏罗纪世界</h1>
+  <div class="sub">JURASSIC WORLD — 恐龙岛生存</div>
+  <p>WASD移动 | 鼠标视角 | Shift奔跑 | 空格跳跃</p>
+  <p>E打开背包 | 左键采集/攻击 | 1-3切换装备</p>
+  <p>探索恐龙岛 | 采集资源 | 制作工具 | 小心肉食恐龙!</p>
+  <button class="pbtn" id="playBtn" onclick="startGame()">进入恐龙岛</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+document.getElementById('crosshair').style.display='none';
+document.getElementById('hud').style.display='none';
+let state='menu',hp=100,food=100,thirst=100;
+function showMsg(t,d){const m=document.getElementById('msg');m.innerHTML=t;m.style.opacity='1';setTimeout(()=>m.style.opacity='0',d||2000);}
+function startGame(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('crosshair').style.display='block';
+  document.getElementById('hud').style.display='flex';
+  state='playing';
+  try{document.querySelector('canvas').requestPointerLock();}catch(ex){}
+  showMsg('欢迎来到恐龙岛! 探索这个史前世界<br><span style="font-size:14px">E背包 | 1-8切换快捷栏 | 左键使用</span>',3000);
+  renderHotbar();
+}
+
+// ═══════ INIT ═══════
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x88ccee);
+scene.fog=new THREE.FogExp2(0x88ccee,.0003);
+
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,5000);
+const ren=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,2));
+ren.shadowMap.enabled=true;ren.shadowMap.type=THREE.PCFSoftShadowMap;
+ren.toneMapping=THREE.ACESFilmicToneMapping;ren.toneMappingExposure=1.3;
+ren.outputEncoding=THREE.sRGBEncoding;
+ren.physicallyCorrectLights=true;
+document.body.appendChild(ren.domElement);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
+
+// ═══════ LIGHTING (真实光照) ═══════
+// 半球光(天空蓝+地面绿反射)
+const hemiLight=new THREE.HemisphereLight(0x88bbee,0x445522,.5);scene.add(hemiLight);
+const ambLight=new THREE.AmbientLight(0x556677,.25);scene.add(ambLight);
+// 太阳(更强的平行光)
+const sun=new THREE.DirectionalLight(0xfff5e0,1.5);
+sun.position.set(400,500,200);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); // 高清阴影
+sun.shadow.bias=-0.0001;
+const sc=sun.shadow.camera;sc.left=sc.bottom=-200;sc.right=sc.top=200;sc.near=1;sc.far=1500;
+scene.add(sun);
+// 补光(填充阴影面)
+const fillLight=new THREE.DirectionalLight(0x8899bb,.3);
+fillLight.position.set(-200,100,-100);scene.add(fillLight);
+
+// Sun visual
+const sunMesh=new THREE.Mesh(new THREE.SphereGeometry(30,16,12),new THREE.MeshBasicMaterial({color:0xffeeaa}));
+sunMesh.position.set(400,500,200);scene.add(sunMesh);
+// 太阳光晕
+const sunHalo=new THREE.Mesh(new THREE.SphereGeometry(60,12,10),new THREE.MeshBasicMaterial({color:0xffeedd,transparent:true,opacity:.1}));
+sunHalo.position.copy(sunMesh.position);scene.add(sunHalo);
+
+// ═══════ TERRAIN ═══════
+const WORLD=3200; // world size (-1600 to 1600) 4倍大
+const SEGMENTS=128;
+const terrainGeo=new THREE.PlaneGeometry(WORLD,WORLD,SEGMENTS,SEGMENTS);
+terrainGeo.rotateX(-Math.PI/2);
+
+// Heightmap generation (island shape)
+const verts=terrainGeo.attributes.position.array;
+function getHeight(x,z){
+  // Island falloff
+  const dx=x/(WORLD/2),dz=z/(WORLD/2);
+  const distFromCenter=Math.sqrt(dx*dx+dz*dz);
+  const falloff=Math.max(0,1-distFromCenter*1.1);
+  // Multi-octave noise
+  let h=0;
+  h+=Math.sin(x*.008+1)*Math.cos(z*.008)*15;
+  h+=Math.sin(x*.02+3)*Math.cos(z*.015+2)*6;
+  h+=Math.sin(x*.05)*Math.cos(z*.05)*2;
+  h+=Math.sin(x*.003)*Math.cos(z*.004)*30;
+  // Mountains in center
+  const mDist=Math.sqrt((x+50)*(x+50)+(z+50)*(z+50));
+  if(mDist<200)h+=Math.max(0,(200-mDist)*.25)*falloff;
+  h*=falloff;
+  // Beach (flatten near water)
+  if(h<2&&h>-1)h=h*.3;
+  return h;
+}
+for(let i=0;i<verts.length;i+=3){
+  verts[i+1]=getHeight(verts[i],verts[i+2]);
+}
+terrainGeo.computeVertexNormals();
+
+// Terrain color by height
+const colors=new Float32Array(verts.length);
+for(let i=0;i<verts.length;i+=3){
+  const h=verts[i+1];
+  let r,g,b;
+  if(h<0){r=.2;g=.5;b=.7;} // water-ish
+  else if(h<2){r=.76;g=.7;b=.5;} // sand/beach
+  else if(h<15){r=.25;g=.55;b=.2;} // grass
+  else if(h<30){r=.2;g=.45;b=.15;} // dark green (forest)
+  else if(h<45){r=.4;g=.35;b=.25;} // brown (mountain)
+  else{r=.6;g=.6;b=.6;} // rock/snow
+  // Add variation
+  const v=(Math.random()-.5)*.06;
+  colors[i]=r+v;colors[i+1]=g+v;colors[i+2]=b+v;
+}
+terrainGeo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:.02});
+const terrain=new THREE.Mesh(terrainGeo,terrainMat);
+terrain.receiveShadow=true;scene.add(terrain);
+
+// Water plane
+// 水面(更真实)
+const waterGeo=new THREE.PlaneGeometry(WORLD*3,WORLD*3,64,64);
+const wVerts=waterGeo.attributes.position.array;
+for(let i=0;i<wVerts.length;i+=3)wVerts[i+2]+=(Math.random()-.5)*.3; // 微波浪
+waterGeo.computeVertexNormals();
+const water=new THREE.Mesh(waterGeo,
+  new THREE.MeshStandardMaterial({color:0x1166aa,transparent:true,opacity:.75,roughness:.1,metalness:.2})
+);
+water.rotation.x=-Math.PI/2;water.position.y=-.5;water.receiveShadow=true;scene.add(water);
+
+// ═══════ TREES ═══════
+const trees=[];
+function mkTree(x,z){
+  const h=getHeight(x,z);
+  if(h<3||h>40)return; // only on grass/forest
+  trees.push({x:x,z:z});
+  const g=new THREE.Group();
+  const tH=4+Math.random()*6;
+  // Trunk
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.25,tH,6),new THREE.MeshStandardMaterial({color:0x5a3a1a,roughness:.9}));
+  trunk.position.y=tH/2;trunk.castShadow=true;g.add(trunk);
+  // Leaves (multiple layers)
+  const leafColor=0x226622+Math.floor(Math.random()*0x224400);
+  for(let li=0;li<3;li++){
+    const lr=2.5-li*.6+Math.random();
+    const lh=2+Math.random();
+    const leaf=new THREE.Mesh(new THREE.ConeGeometry(lr,lh,7),new THREE.MeshStandardMaterial({color:leafColor,roughness:.8}));
+    leaf.position.y=tH-1+li*1.5;leaf.castShadow=true;g.add(leaf);
+  }
+  g.position.set(x,h,z);scene.add(g);
+}
+// Spawn trees
+for(let i=0;i<300;i++){
+  const x=(Math.random()-.5)*WORLD*.85;
+  const z=(Math.random()-.5)*WORLD*.85;
+  mkTree(x,z);
+}
+
+// ═══════ BUSHES (草丛，采集纤维) ═══════
+const bushes=[];
+const bushMats=[
+  new THREE.MeshStandardMaterial({color:0x2a7a2a,roughness:.8}),
+  new THREE.MeshStandardMaterial({color:0x3a8a3a,roughness:.8}),
+  new THREE.MeshStandardMaterial({color:0x2a6a1a,roughness:.85}),
+];
+for(let i=0;i<400;i++){
+  const x=(Math.random()-.5)*WORLD*.8;
+  const z=(Math.random()-.5)*WORLD*.8;
+  const h=getHeight(x,z);
+  if(h<2||h>35)continue;
+  const bG=new THREE.Group();
+  const bMat=bushMats[Math.floor(Math.random()*3)];
+  // 几个球组成草丛
+  for(let bi=0;bi<4+Math.floor(Math.random()*3);bi++){
+    const br=.3+Math.random()*.4;
+    const bx2=(Math.random()-.5)*.8;
+    const bz2=(Math.random()-.5)*.8;
+    const leaf=new THREE.Mesh(new THREE.SphereGeometry(br,8,6),bMat);
+    leaf.position.set(bx2,br*.6,bz2);leaf.castShadow=true;bG.add(leaf);
+  }
+  // 底部小茎
+  for(let si=0;si<3;si++){
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.02,.03,.4,4),new THREE.MeshStandardMaterial({color:0x3a5a1a,roughness:.9}));
+    stem.position.set((Math.random()-.5)*.5,.2,(Math.random()-.5)*.5);bG.add(stem);
+  }
+  bG.position.set(x,h,z);
+  scene.add(bG);
+  bushes.push({mesh:bG,x:x,z:z,fiber:3+Math.floor(Math.random()*4)});
+}
+
+// ═══════ ROCKS ═══════
+const rocks=[];
+for(let i=0;i<80;i++){
+  const x=(Math.random()-.5)*WORLD*.8;
+  const z=(Math.random()-.5)*WORLD*.8;
+  const h=getHeight(x,z);
+  if(h<1)continue;
+  const s=1+Math.random()*3;
+  rocks.push({x:x,z:z});
+  const rock=new THREE.Mesh(
+    new THREE.DodecahedronGeometry(s,0),
+    new THREE.MeshStandardMaterial({color:0x777766+Math.floor(Math.random()*0x222222),roughness:.9})
+  );
+  rock.position.set(x,h+s*.3,z);
+  rock.rotation.set(Math.random(),Math.random(),Math.random());
+  rock.castShadow=true;scene.add(rock);
+}
+
+// ═══════ DINOSAUR BUILDER ═══════
+const DINO_TYPES={
+  trex:{name:'霸王龙',size:3,speed:6,hp:500,hostile:true,color:0x5a4a2a,dmg:40,range:4,
+    bodyL:4,bodyH:2.5,headSize:1.2,legH:2,tailL:4,armSize:.4},
+  raptor:{name:'迅猛龙',size:1.2,speed:12,hp:120,hostile:true,color:0x556633,dmg:20,range:2.5,
+    bodyL:2,bodyH:.8,headSize:.5,legH:1.2,tailL:2.5,armSize:.3},
+  trike:{name:'三角龙',size:2,speed:4,hp:350,hostile:false,color:0x7a6a4a,dmg:25,range:3,
+    bodyL:3,bodyH:1.8,headSize:1.5,legH:1.5,tailL:2,armSize:0},
+  bronto:{name:'腕龙',size:4,speed:2.5,hp:800,hostile:false,color:0x6a7a5a,dmg:0,range:0,
+    bodyL:5,bodyH:3,headSize:.8,legH:4,tailL:10,armSize:0},
+  stego:{name:'剑龙',size:2,speed:3,hp:300,hostile:false,color:0x6a5a3a,dmg:15,range:3,
+    bodyL:3.5,bodyH:1.5,headSize:.6,legH:1.3,tailL:3,armSize:0},
+  ptera:{name:'翼龙',size:1.5,speed:8,hp:80,hostile:false,color:0x8a7a6a,dmg:0,range:0,flee:true,
+    bodyL:1.5,bodyH:.5,headSize:.4,legH:.3,tailL:1,armSize:0,flying:true},
+  para:{name:'副栉龙',size:1.8,speed:5,hp:200,hostile:false,color:0x558866,dmg:0,range:0,
+    bodyL:2.5,bodyH:1.4,headSize:.7,legH:1.5,tailL:2.5,armSize:0},
+  spino:{name:'棘龙',size:3.5,speed:5,hp:600,hostile:true,color:0x4a5a3a,dmg:35,range:4,
+    bodyL:4.5,bodyH:2.8,headSize:1.3,legH:2.2,tailL:4.5,armSize:.5},
+};
+
+function ap(p,geo,mat,x,y,z,rx,ry,rz){
+  const m=new THREE.Mesh(geo,mat);m.position.set(x||0,y||0,z||0);
+  if(rx)m.rotation.x=rx;if(ry)m.rotation.y=ry;if(rz)m.rotation.z=rz;
+  m.castShadow=true;p.add(m);return m;
+}
+// 用轮廓点生成旋转体(光滑管状)
+function mkTube(points,mat,segs){
+  const pts=points.map(p=>new THREE.Vector2(p[0],p[1]));
+  const geo=new THREE.LatheGeometry(pts,segs||20);
+  return new THREE.Mesh(geo,mat);
+}
+function buildDino(type){
+  const d=DINO_TYPES[type];
+  const g=new THREE.Group();
+  // Materials with canvas texture for skin pattern
+  const skinC=document.createElement('canvas');skinC.width=128;skinC.height=128;
+  const sx=skinC.getContext('2d');
+  const baseHex='#'+d.color.toString(16).padStart(6,'0');
+  sx.fillStyle=baseHex;sx.fillRect(0,0,128,128);
+  // Add scale pattern
+  for(let sy2=0;sy2<128;sy2+=6){for(let sx2=0;sx2<128;sx2+=6){
+    sx.fillStyle=`rgba(${Math.random()>0.5?'255,255,255':'0,0,0'},${0.03+Math.random()*0.04})`;
+    sx.fillRect(sx2,sy2,5,5);
+  }}
+  // Stripe pattern for some dinos
+  if(type==='raptor'||type==='spino'){
+    for(let si=0;si<8;si++){sx.fillStyle='rgba(0,0,0,0.08)';sx.fillRect(0,si*16,128,8);}
+  }
+  const skinTex=new THREE.CanvasTexture(skinC);skinTex.wrapS=skinTex.wrapT=THREE.RepeatWrapping;
+  const mat=new THREE.MeshStandardMaterial({map:skinTex,roughness:.6,metalness:.05});
+  const matD=new THREE.MeshStandardMaterial({color:d.color-0x111111,roughness:.65});
+  const matL=new THREE.MeshStandardMaterial({color:d.color+0x222211,roughness:.5});
+  const boneM=new THREE.MeshStandardMaterial({color:0xccbb99,roughness:.4});
+  const eyeM2=new THREE.MeshBasicMaterial({color:d.hostile?0xff4422:0x332200});
+  const toothM=new THREE.MeshStandardMaterial({color:0xeeeecc,roughness:.3});
+  const clawM=new THREE.MeshStandardMaterial({color:0x444433,roughness:.5});
+  const matS=new THREE.MeshStandardMaterial({color:d.color+0x111100,roughness:.6});
+  const bH=d.bodyH,bL=d.bodyL,lH=d.legH,hS=d.headSize,tL=d.tailL;
+  const S=20;
+
+  // ══ BODY+TAIL: TubeGeometry along spine curve ══
+  const spinePoints=[];
+  // Neck base → chest → belly → hip → tail tip
+  const neckL=type==='bronto'?9:type==='spino'?2.5:type==='para'?1.5:hS*1.2;
+  const neckAng=type==='bronto'?0.7:type==='para'?0.35:0.2;
+  spinePoints.push(new THREE.Vector3(0,lH+bH*0.8+Math.sin(neckAng)*neckL,-bL*0.35-Math.cos(neckAng)*neckL)); // neck top
+  spinePoints.push(new THREE.Vector3(0,lH+bH*0.75,-bL*0.35)); // neck base
+  spinePoints.push(new THREE.Vector3(0,lH+bH*0.6,-bL*0.15));  // chest
+  spinePoints.push(new THREE.Vector3(0,lH+bH*0.5,0));           // belly
+  spinePoints.push(new THREE.Vector3(0,lH+bH*0.5,bL*0.2));     // hip
+  spinePoints.push(new THREE.Vector3(0,lH+bH*0.4,bL*0.35));    // tail base
+  for(let ti=1;ti<=6;ti++){
+    const t=ti/6;
+    spinePoints.push(new THREE.Vector3(0,lH+bH*0.35-t*bH*0.2+t*t*0.5,bL*0.35+t*tL));
+  }
+  const spineCurve=new THREE.CatmullRomCurve3(spinePoints);
+
+  // Create tube with varying radius using scale trick
+  const bodyTube=new THREE.TubeGeometry(spineCurve,30,1,12,false);
+  // Modify vertex positions to create varying thickness
+  const btVerts=bodyTube.attributes.position;
+  const totalPts=spineCurve.getLength();
+  for(let i=0;i<btVerts.count;i++){
+    const v=new THREE.Vector3(btVerts.getX(i),btVerts.getY(i),btVerts.getZ(i));
+    // Find closest point on curve to determine radius scale
+    let minD=999,minT=0;
+    for(let t=0;t<=1;t+=0.02){
+      const cp=spineCurve.getPointAt(t);
+      const dd=v.distanceTo(cp);
+      if(dd<minD){minD=dd;minT=t;}
+    }
+    // Radius profile: thin neck → wide body → thin tail
+    let rScale;
+    if(minT<0.15)rScale=type==='bronto'?bH*0.1+minT*bH*1.2:bH*0.2+minT*bH*1.5; // neck
+    else if(minT<0.25)rScale=bH*0.42;                    // chest
+    else if(minT<0.5)rScale=bH*0.5;                      // belly (widest)
+    else if(minT<0.6)rScale=bH*0.45;                     // hip
+    else rScale=bH*0.4*(1-(minT-0.6)/0.4*0.85);         // tail (taper)
+    rScale=Math.max(rScale,0.03);
+    // Scale vertex away from spine
+    const cp=spineCurve.getPointAt(minT);
+    const dir=v.clone().sub(cp);
+    if(dir.length()>0.01){
+      dir.normalize().multiplyScalar(rScale);
+      btVerts.setXYZ(i,cp.x+dir.x,cp.y+dir.y,cp.z+dir.z);
+    }
+  }
+  bodyTube.computeVertexNormals();
+  const bodyMesh=new THREE.Mesh(bodyTube,mat);
+  bodyMesh.castShadow=true;g.add(bodyMesh);
+
+  // Belly underside (lighter color)
+  const bellyMesh=ap(g,new THREE.SphereGeometry(bH*0.4,S,S),matL,0,lH+bH*0.25,0);
+  bellyMesh.scale.set(0.65,0.35,bL/bH*0.4);
+
+  // ══ HEAD ══
+  const headY=spinePoints[0].y;
+  const headZ=spinePoints[0].z;
+  // Skull
+  ap(g,new THREE.SphereGeometry(hS*0.5,S,S),matD,0,headY,headZ).scale.set(0.85,0.75,1.3);
+  // Snout
+  ap(g,new THREE.SphereGeometry(hS*0.4,S,S),matD,0,headY-hS*0.05,headZ-hS*0.65).scale.set(0.6,0.45,1.1);
+  // Jaw
+  const jaw=ap(g,new THREE.SphereGeometry(hS*0.35,S,S),matD,0,headY-hS*0.28,headZ-hS*0.2);
+  jaw.scale.set(0.55,0.25,1.3);g.userData.jaw=jaw;
+  // Eyes
+  const eo=hS*0.33;
+  ap(g,new THREE.SphereGeometry(hS*0.1,S,S),new THREE.MeshStandardMaterial({color:0xeeeedd,roughness:0.2}),-eo,headY+hS*0.1,headZ-hS*0.22);
+  ap(g,new THREE.SphereGeometry(hS*0.1,S,S),new THREE.MeshStandardMaterial({color:0xeeeedd,roughness:0.2}),eo,headY+hS*0.1,headZ-hS*0.22);
+  ap(g,new THREE.SphereGeometry(hS*0.065,S,S),eyeM2,-eo,headY+hS*0.1,headZ-hS*0.28);
+  ap(g,new THREE.SphereGeometry(hS*0.065,S,S),eyeM2,eo,headY+hS*0.1,headZ-hS*0.28);
+  ap(g,new THREE.SphereGeometry(hS*0.03,12,10),new THREE.MeshBasicMaterial({color:0x000000}),-eo,headY+hS*0.1,headZ-hS*0.32);
+  ap(g,new THREE.SphereGeometry(hS*0.03,12,10),new THREE.MeshBasicMaterial({color:0x000000}),eo,headY+hS*0.1,headZ-hS*0.32);
+  // Nostrils
+  ap(g,new THREE.SphereGeometry(hS*0.03,8,6),new THREE.MeshBasicMaterial({color:0x1a1a1a}),-0.04*d.size,headY+hS*0.02,headZ-hS*0.9);
+  ap(g,new THREE.SphereGeometry(hS*0.03,8,6),new THREE.MeshBasicMaterial({color:0x1a1a1a}),0.04*d.size,headY+hS*0.02,headZ-hS*0.9);
+  // Teeth (carnivores)
+  if(d.hostile&&type!=='ptera'){
+    for(let ti=0;ti<8;ti++){
+      const tx=(ti-3.5)*0.04*d.size;
+      ap(g,new THREE.ConeGeometry(0.02*d.size,0.08*d.size,8),toothM,tx,headY-hS*0.33,headZ-hS*0.45,Math.PI);
+      ap(g,new THREE.ConeGeometry(0.015*d.size,0.05*d.size,8),toothM,tx,headY-hS*0.06,headZ-hS*0.7,Math.PI);
+    }
+  }
+
+  // ══ LEGS ══
+  const legOff=bH*0.38,legR2=bH*0.18;
+  function mkLeg(x,z){
+    const lg=new THREE.Group();
+    ap(lg,new THREE.SphereGeometry(legR2*1.05,S-2,S-2),matD,0,0,0);
+    ap(lg,new THREE.CylinderGeometry(legR2,legR2*0.75,lH*0.45,14),matD,0,-lH*0.18,0,0.12);
+    ap(lg,new THREE.SphereGeometry(legR2*0.8,S-4,S-4),matD,0,-lH*0.38,-0.02);
+    ap(lg,new THREE.CylinderGeometry(legR2*0.6,legR2*0.38,lH*0.45,14),matD,0,-lH*0.58,0.02,-0.08);
+    const foot=ap(lg,new THREE.SphereGeometry(legR2*1.1,S-4,S-4),matD,0,-lH*0.85,-0.06);
+    foot.scale.set(1,0.25,1.5);
+    for(let ci=0;ci<3;ci++)ap(lg,new THREE.ConeGeometry(0.015*d.size,0.09*d.size,8),clawM,(ci-1)*0.04*d.size,-lH*0.88,-0.2,-0.3);
+    lg.position.set(x,lH,z);g.add(lg);return lg;
+  }
+  const legFL=mkLeg(-legOff,-bL*0.22),legFR=mkLeg(legOff,-bL*0.22);
+  const legBL=mkLeg(-legOff,bL*0.22),legBR=mkLeg(legOff,bL*0.22);
+  g.userData.legs=[legFL,legFR,legBL,legBR];
+
+  // ══ ARMS (carnivores) ══
+  if(d.armSize>0){
+    const aS2=d.armSize*d.size;
+    for(const side of [-1,1]){
+      ap(g,new THREE.SphereGeometry(0.045*d.size,S-4,S-4),matD,side*bH*0.52,lH+bH*0.45,-bL*0.15);
+      ap(g,new THREE.CylinderGeometry(0.03*d.size,0.04*d.size,aS2*0.5,14),matD,side*bH*0.55,lH+bH*0.3,-bL*0.18,0.5,0,side*0.15);
+      ap(g,new THREE.SphereGeometry(0.02*d.size,10,8),matD,side*bH*0.58,lH+bH*0.15,-bL*0.25);
+      for(let ci=0;ci<2;ci++)ap(g,new THREE.ConeGeometry(0.01*d.size,0.04*d.size,6),clawM,side*bH*0.58+(ci-0.5)*0.02*d.size,lH+bH*0.1,-bL*0.3,-0.4);
+    }
+  }
+
+  // ══ SPECIAL FEATURES ══
+  if(type==='spino'){
+    for(let si=0;si<10;si++){const t=si/9;const sh=bH*(1-Math.abs(t-0.5)*1.8)*0.8;
+      ap(g,new THREE.BoxGeometry(0.06,Math.max(sh,0.1),0.15),new THREE.MeshStandardMaterial({color:0x885533,roughness:0.6}),0,lH+bH+sh*0.4,-bL*0.3+si*bL*0.08);
+    }
+  }
+  if(type==='trike'){
+    ap(g,new THREE.ConeGeometry(0.08,2,8),boneM,-0.4,headY+0.6,headZ-0.5,-0.5);
+    ap(g,new THREE.ConeGeometry(0.08,2,8),boneM,0.4,headY+0.6,headZ-0.5,-0.5);
+    ap(g,new THREE.ConeGeometry(0.06,0.8,8),boneM,0,headY+0.2,headZ-0.8,-0.3);
+    for(let fi=0;fi<5;fi++){const a=(fi-2)*0.4;ap(g,new THREE.SphereGeometry(0.25,10,8),matD,Math.sin(a)*1,headY+Math.cos(a)*0.8+0.3,headZ+0.5);}
+    ap(g,new THREE.CircleGeometry(1.3,16),matD,0,headY+0.5,headZ+0.4);
+    for(let si=0;si<6;si++){const a=(si-2.5)*0.35;ap(g,new THREE.ConeGeometry(0.05,0.3,5),boneM,Math.sin(a)*1.3,headY+Math.cos(a)*1+0.3,headZ+0.4,0,0,a);}
+  }
+  if(type==='stego'){
+    // 背板(沿脊椎线，高度跟随身体)
+    for(let pi=0;pi<9;pi++){const t=pi/8;const ph=0.5+Math.sin(t*Math.PI)*0.4;
+      const pz=-bL*0.15+pi*(bL+tL)*0.1;
+      const py=lH+bH*0.5+ph*0.3+(t>0.5?-(t-0.5)*bH*0.3:0); // 尾部背板降低
+      ap(g,new THREE.BoxGeometry(0.04,ph,0.35),new THREE.MeshStandardMaterial({color:0x886644,roughness:0.6}),0,py,pz);
+      if(pi%2===0)ap(g,new THREE.BoxGeometry(0.04,ph*0.8,0.3),new THREE.MeshStandardMaterial({color:0x775533,roughness:0.7}),0.08,py-0.05,pz+0.1);
+    }
+    // 尾刺(在尾巴末端，高度跟随尾巴下降)
+    const tailEndY=lH+bH*0.2;
+    const tailEndZ=bL*0.35+tL*0.8;
+    for(let si=0;si<4;si++){
+      const sxx=(si%2?1:-1)*(si<2?0.2:0.35);
+      const szOff=si<2?0:0.4;
+      ap(g,new THREE.ConeGeometry(0.04,0.8,6),boneM,sxx,tailEndY+0.1,tailEndZ+szOff,0.4*(si%2?1:-1),0,0.3*(si%2?1:-1));
+    }
+  }
+  if(type==='ptera'){
+    const wingM=new THREE.MeshStandardMaterial({color:0x8a7a65,roughness:0.6,side:THREE.DoubleSide});
+    const membraneM=new THREE.MeshStandardMaterial({color:0x9a8a70,roughness:0.7,side:THREE.DoubleSide,transparent:true,opacity:0.85});
+    for(const side of [-1,1]){
+      const wG=new THREE.Group();
+      ap(wG,new THREE.CylinderGeometry(0.04,0.035,1.8,10),wingM,side*0.9,0,0,0,0,side*0.15);
+      ap(wG,new THREE.SphereGeometry(0.06,10,8),wingM,side*1.7,-0.05,0);
+      ap(wG,new THREE.CylinderGeometry(0.03,0.025,2,10),wingM,side*2.7,-0.1,0,0,0,side*0.05);
+      ap(wG,new THREE.CylinderGeometry(0.02,0.008,2.5,8),wingM,side*4.9,-0.2,0,0,0,side*0.08);
+      const memShape=new THREE.Shape();
+      memShape.moveTo(0,0.2);memShape.lineTo(side*6,-0.15);memShape.lineTo(side*5.5,-0.8);
+      memShape.lineTo(side*3,-1);memShape.lineTo(side*1,-0.6);memShape.lineTo(0,-0.3);
+      const mem=new THREE.Mesh(new THREE.ShapeGeometry(memShape),membraneM);wG.add(mem);
+      wG.position.set(0,lH+bH*0.7,0);g.add(wG);
+      if(side===-1)g.userData.wingLG=wG;else g.userData.wingRG=wG;
+    }
+    g.userData.wings=[g.userData.wingLG,g.userData.wingRG];
+    ap(g,new THREE.ConeGeometry(0.06,0.8,8),matD,0,headY-hS*0.05,headZ-hS*1.1,Math.PI/2);
+    ap(g,new THREE.ConeGeometry(0.04,0.6,8),matD,0,headY-hS*0.2,headZ-hS*0.9,Math.PI/2);
+    const crestShape=new THREE.Shape();
+    crestShape.moveTo(0,0);crestShape.quadraticCurveTo(0.15,0.5,0.05,1.2);crestShape.lineTo(-0.02,1.1);crestShape.quadraticCurveTo(0.08,0.4,0,0);
+    const crest=new THREE.Mesh(new THREE.ExtrudeGeometry(crestShape,{depth:0.02,bevelEnabled:false}),new THREE.MeshStandardMaterial({color:0xaa6644,roughness:0.5}));
+    crest.position.set(-0.01,headY+hS*0.15,headZ+0.1);crest.rotation.x=-0.4;g.add(crest);
+    ap(g,new THREE.ConeGeometry(0.04,0.5,8),matD,0,lH+bH*0.3,bL*0.3+0.3,0.3);
+    ap(g,new THREE.BoxGeometry(0.25,0.01,0.15),matD,0,lH+bH*0.25,bL*0.3+0.7);
+  }
+  if(type==='para'){
+    ap(g,new THREE.CylinderGeometry(0.06,0.03,0.8,8),matS,0,headY+hS*0.5,headZ+0.2,-0.6);
+  }
+
+  return g;
+}
+
+// ═══════ 4个地标点(方舟信标) ═══════
+const beacons=[
+  {x:-1500,z:-1500,color:0xff4444,name:'红色方舟'},  // 左上边缘
+  {x:1500,z:-1500,color:0x44aaff,name:'蓝色方舟'},   // 右上边缘
+  {x:-1500,z:1500,color:0x44ff44,name:'绿色方舟'},   // 左下边缘
+  {x:1500,z:1500,color:0xffaa22,name:'橙色方舟'},    // 右下边缘
+];
+beacons.forEach(b=>{
+  const h=Math.max(getHeight(b.x,b.z),2);
+  // 光柱(从地面到天空)
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,80,8),new THREE.MeshBasicMaterial({color:b.color,transparent:true,opacity:.3}));
+  pillar.position.set(b.x,h+40,b.z);scene.add(pillar);
+  // 底座平台
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(4,5,1,12),new THREE.MeshStandardMaterial({color:b.color,roughness:.4,metalness:.3}));
+  base.position.set(b.x,h+.5,b.z);base.castShadow=true;scene.add(base);
+  // 顶部发光球
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(1.5,16,12),new THREE.MeshBasicMaterial({color:b.color,transparent:true,opacity:.6}));
+  orb.position.set(b.x,h+82,b.z);scene.add(orb);
+  // 环形标记(地面)
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(6,.15,8,24),new THREE.MeshBasicMaterial({color:b.color,transparent:true,opacity:.5}));
+  ring.position.set(b.x,h+.2,b.z);ring.rotation.x=Math.PI/2;scene.add(ring);
+});
+
+// ═══════ SPAWN DINOSAURS ═══════
+const dinos=[];
+function spawnDino(type,x,z){
+  const d=DINO_TYPES[type];
+  const mesh=buildDino(type);
+  const h=getHeight(x,z);
+  mesh.position.set(x,h,z);
+  mesh.rotation.y=Math.random()*Math.PI*2;
+  scene.add(mesh);
+  dinos.push({
+    mesh,type,hp:d.hp,maxHp:d.hp,speed:d.speed,hostile:d.hostile,
+    state:'wander',targetPos:null,attackCD:0,walkPhase:Math.random()*10,
+    dmg:d.dmg,range:d.range,name:d.name,size:d.size,
+    flying:d.flying||false,flyH:d.flying?15+Math.random()*20:0
+  });
+}
+
+// Spawn herds and predators across the map
+const spawnList=[
+  {type:'bronto',count:4,zone:{x:-400,z:-400,r:500}},
+  {type:'bronto',count:3,zone:{x:300,z:200,r:400}},
+  {type:'trike',count:5,zone:{x:400,z:-200,r:400}},
+  {type:'trike',count:4,zone:{x:-200,z:300,r:350}},
+  {type:'stego',count:4,zone:{x:-200,z:400,r:400}},
+  {type:'stego',count:3,zone:{x:200,z:-400,r:350}},
+  {type:'para',count:6,zone:{x:200,z:200,r:500}},
+  {type:'para',count:4,zone:{x:-300,z:-100,r:400}},
+  {type:'raptor',count:4,zone:{x:-600,z:-600,r:300}},
+  {type:'raptor',count:3,zone:{x:600,z:200,r:250}},
+  {type:'raptor',count:3,zone:{x:-100,z:500,r:300}},
+  {type:'trex',count:1,zone:{x:0,z:-700,r:400}},
+  {type:'trex',count:1,zone:{x:-700,z:300,r:350}},
+  {type:'trex',count:1,zone:{x:500,z:-500,r:300}},
+  {type:'spino',count:1,zone:{x:400,z:-700,r:400}},
+  {type:'spino',count:1,zone:{x:-500,z:-300,r:350}},
+  {type:'ptera',count:6,zone:{x:0,z:0,r:1000}},
+];
+spawnList.forEach(s=>{
+  for(let i=0;i<s.count;i++){
+    const a=Math.random()*Math.PI*2;
+    const r=Math.random()*s.zone.r;
+    const x=s.zone.x+Math.cos(a)*r;
+    const z=s.zone.z+Math.sin(a)*r;
+    const h=getHeight(x,z);
+    if(h>2)spawnDino(s.type,x,z);
+  }
+});
+
+// ═══════ PLAYER ═══════
+const pos=new THREE.Vector3(0,10,200);
+let yaw=0,pitch=0,vy=0,grounded=false;
+const K={};let mouseDown=false,pointerLocked=false;
+
+// ═══════ INPUT ═══════
+document.addEventListener('keydown',e=>{K[e.code]=true;
+  if(e.code==='KeyE'&&state==='playing'){toggleInv();return;}
+  // 数字键1-8切换快捷栏
+  for(let di=1;di<=8;di++){if(e.code==='Digit'+di)equipItem(di-1);}
+});
+document.addEventListener('keyup',e=>{K[e.code]=false;});
+document.addEventListener('mousemove',e=>{
+  if(state!=='playing'||!pointerLocked)return;
+  yaw-=e.movementX*.0007;pitch-=e.movementY*.0007;
+  pitch=Math.max(-1.4,Math.min(1.4,pitch));
+});
+document.addEventListener('mousedown',e=>{
+  if(invOpen)return;
+  if(state==='playing'&&!pointerLocked){try{ren.domElement.requestPointerLock();}catch(ex){}return;}
+  mouseDown=true;
+  if(state==='playing'&&pointerLocked)gather();
+});
+document.addEventListener('mouseup',()=>{mouseDown=false;});
+document.addEventListener('pointerlockchange',()=>{
+  pointerLocked=!!document.pointerLockElement;
+  document.body.style.cursor=pointerLocked?'none':'default';
+});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+
+
+// ═══════ PLAYER HANDS (方舟风格：方块卡通手) ═══════
+const handG=new THREE.Group();
+// 用Canvas画皮肤纹理
+const handTex=(()=>{const c=document.createElement('canvas');c.width=64;c.height=64;const x=c.getContext('2d');
+  x.fillStyle='#c4a882';x.fillRect(0,0,64,64);
+  x.fillStyle='rgba(0,0,0,0.05)';for(let i=0;i<64;i+=4)x.fillRect(0,i,64,2);
+  return new THREE.CanvasTexture(c);})();
+const skinM=new THREE.MeshStandardMaterial({map:handTex,roughness:.55});
+const skinD=new THREE.MeshStandardMaterial({color:0xb8a078,roughness:.6});
+const sleeveM=new THREE.MeshStandardMaterial({color:0x3a4a2a,roughness:.7});
+
+// ── 右手(屏幕右侧) ──
+const rightHand=new THREE.Group();
+ap(rightHand,new THREE.BoxGeometry(.045,.045,.1),sleeveM,.02,-.01,.13);
+ap(rightHand,new THREE.BoxGeometry(.04,.04,.08),skinM,.015,-.01,.06);
+ap(rightHand,new THREE.BoxGeometry(.05,.03,.06),skinM,0,-.015,.01);
+for(let i=0;i<4;i++){
+  const fx=-.015+i*.013;
+  ap(rightHand,new THREE.BoxGeometry(.011,.014,.022),skinM,fx,-.02,-.02,.6);
+  ap(rightHand,new THREE.BoxGeometry(.01,.012,.018),skinD,fx,-.025,-.035,.9);
+}
+ap(rightHand,new THREE.BoxGeometry(.013,.022,.013),skinM,.03,-.01,0,0,0,-.3);
+rightHand.position.set(.18,-.12,-.25);
+handG.add(rightHand);
+
+// ── 左手(屏幕左侧) ──
+const leftHand=new THREE.Group();
+ap(leftHand,new THREE.BoxGeometry(.045,.045,.1),sleeveM,-.02,-.01,.13);
+ap(leftHand,new THREE.BoxGeometry(.04,.04,.08),skinM,-.015,-.01,.06);
+ap(leftHand,new THREE.BoxGeometry(.05,.03,.06),skinM,0,-.015,.01);
+for(let i=0;i<4;i++){
+  const fx=-.015+i*.013;
+  ap(leftHand,new THREE.BoxGeometry(.011,.014,.022),skinM,fx,-.02,-.02,.6);
+  ap(leftHand,new THREE.BoxGeometry(.01,.012,.018),skinD,fx,-.025,-.035,.9);
+}
+ap(leftHand,new THREE.BoxGeometry(.013,.022,.013),skinM,-.03,-.01,0,0,0,.3);
+leftHand.position.set(-.18,-.12,-.25);
+handG.add(leftHand);
+
+// 手持物品(可切换)
+let heldItemMesh=null;
+const woodM=new THREE.MeshStandardMaterial({color:0x6a4a2a,roughness:.9});
+const stoneM2=new THREE.MeshStandardMaterial({color:0x777777,roughness:.8});
+const metalM2=new THREE.MeshStandardMaterial({color:0x555555,roughness:.4,metalness:.3});
+const ropeM=new THREE.MeshStandardMaterial({color:0x8a7a5a,roughness:.9});
+
+function buildHeldItem(id){
+  const g=new THREE.Group();
+  if(id==='axe'){
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.008,.01,.25,6),woodM);
+    shaft.rotation.x=.3;shaft.rotation.z=.15;g.add(shaft);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(.06,.08,.015),stoneM2);
+    bl.position.set(.02,.12,-.03);bl.rotation.z=.2;g.add(bl);
+  }else if(id==='pickaxe'){
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.008,.01,.25,6),woodM);
+    shaft.rotation.x=.3;shaft.rotation.z=.15;g.add(shaft);
+    const head=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.12),stoneM2);
+    head.position.set(0,.12,-.02);head.rotation.z=.2;g.add(head);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(.015,.06,5),stoneM2);
+    tip.position.set(0,.12,-.08);tip.rotation.x=Math.PI/2;g.add(tip);
+  }else if(id==='bow'){
+    // 弓身(弯曲)
+    const bowM=new THREE.MeshStandardMaterial({color:0x5a3a1a,roughness:.8});
+    const bow=new THREE.Mesh(new THREE.TorusGeometry(.12,.008,6,12,Math.PI),bowM);
+    bow.rotation.z=Math.PI/2;bow.rotation.y=.3;g.add(bow);
+    // 弓弦
+    const string=new THREE.Mesh(new THREE.CylinderGeometry(.002,.002,.24,4),ropeM);
+    string.position.x=-.005;string.rotation.z=Math.PI/2;g.add(string);
+  }else if(id==='bola'){
+    // 三球绳子
+    for(let bi=0;bi<3;bi++){
+      const a=bi/3*Math.PI*2;
+      const ball=new THREE.Mesh(new THREE.SphereGeometry(.02,8,6),stoneM2);
+      ball.position.set(Math.cos(a)*.06,Math.sin(a)*.06,0);g.add(ball);
+      const rope=new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.06,4),ropeM);
+      rope.position.set(Math.cos(a)*.03,Math.sin(a)*.03,0);
+      rope.rotation.z=a;g.add(rope);
+    }
+  }else if(id==='foundation'||id==='wall'||id==='workbench'){
+    // 蓝图预览(半透明)
+    const bpM=new THREE.MeshBasicMaterial({color:0x44aaff,transparent:true,opacity:.4,wireframe:true});
+    if(id==='foundation')g.add(new THREE.Mesh(new THREE.BoxGeometry(.15,.02,.15),bpM));
+    else if(id==='wall'){const w=new THREE.Mesh(new THREE.BoxGeometry(.12,.08,.005),bpM);w.position.y=.04;g.add(w);}
+    else{const wb=new THREE.Mesh(new THREE.BoxGeometry(.08,.04,.06),bpM);wb.position.y=.02;g.add(wb);}
+  }else if(id==='arrow'||id==='tranqArrow'){
+    // 箭矢
+    const arrowM=id==='tranqArrow'?new THREE.MeshBasicMaterial({color:0x8844cc}):woodM;
+    const ashaft=new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.25,5),woodM);
+    ashaft.rotation.x=.3;g.add(ashaft);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(.01,.04,5),arrowM);
+    tip.position.set(0,.13,-.02);tip.rotation.x=.3;g.add(tip);
+  }else{
+    // 默认拳头(空手)
+    return null;
+  }
+  g.position.set(.01,-.03,.02);
+  return g;
+}
+
+function updateHeldItem(){
+  if(heldItemMesh){handG.remove(heldItemMesh);heldItemMesh=null;}
+  const item=hotbar[hotbarSel];
+  if(item&&ITEMS[item.id]){
+    heldItemMesh=buildHeldItem(item.id);
+    if(heldItemMesh)handG.add(heldItemMesh);
+  }
+}
+// 初始默认石斧
+const axeG=buildHeldItem('axe');
+if(axeG){axeG.position.set(.01,-.03,.02);handG.add(axeG);heldItemMesh=axeG;}
+
+handG.position.set(0,-.06,-.1);
+camera.add(handG);scene.add(camera);
+let bobPh=0;
+
+// ═══════ INVENTORY & CRAFTING ═══════
+const resources={wood:20,stone:15,fiber:10,thatch:10,hide:0,metal:0,narcoberry:0};
+const inventory=[];
+let invOpen=false;
+
+const ITEMS={
+  pickaxe:{name:'镐子',icon:'⛏️',dmg:15,gather:'stone'},
+  axe:{name:'斧头',icon:'🪓',dmg:12,gather:'wood'},
+  bow:{name:'弓',icon:'🏹',dmg:0},
+  arrow:{name:'箭',icon:'➡️',dmg:25,stackable:true},
+  bola:{name:'流星锤',icon:'🪢',dmg:0,special:'stun'},
+  foundation:{name:'地基',icon:'🟫',place:true},
+  wall:{name:'墙',icon:'🧱',place:true},
+  tranqArrow:{name:'麻醉箭',icon:'💉',dmg:10,stackable:true,special:'tranq'},
+  workbench:{name:'工作台',icon:'🔧',place:true},
+};
+
+const RECIPES=[
+  {id:'pickaxe',name:'镐子',icon:'⛏️',cost:{wood:10,stone:5,thatch:5},need:null},
+  {id:'axe',name:'斧头',icon:'🪓',cost:{wood:8,stone:12,thatch:3},need:null},
+  {id:'bow',name:'弓',icon:'🏹',cost:{wood:15,fiber:20},need:null},
+  {id:'arrow',name:'箭 x5',icon:'➡️',cost:{wood:5,thatch:10},need:null,qty:5},
+  {id:'bola',name:'流星锤',icon:'🪢',cost:{stone:5,fiber:15,thatch:5},need:null},
+  {id:'foundation',name:'地基',icon:'🟫',cost:{wood:30,thatch:20,stone:10},need:'workbench'},
+  {id:'wall',name:'墙',icon:'🧱',cost:{wood:20,thatch:15},need:'workbench'},
+  {id:'tranqArrow',name:'麻醉箭 x3',icon:'💉',cost:{arrow:3,narcoberry:5},need:'workbench',qty:3},
+  {id:'workbench',name:'工作台',icon:'🔧',cost:{wood:25,stone:15,fiber:10},need:null},
+];
+
+function hasItem(id){return inventory.some(it=>it.id===id);}
+function countItem(id){return inventory.filter(it=>it.id===id).reduce((s,it)=>s+(it.qty||1),0);}
+function canCraft(r){
+  if(r.need&&!hasItem(r.need))return false;
+  for(const k in r.cost){
+    if(k==='arrow'||k==='tranqArrow'){if(countItem(k)<r.cost[k])return false;}
+    else{if((resources[k]||0)<r.cost[k])return false;}
+  }
+  return true;
+}
+function craft(r){
+  if(!canCraft(r))return;
+  for(const k in r.cost){
+    if(k==='arrow'||k==='tranqArrow'){
+      let rem=r.cost[k];
+      for(let i=inventory.length-1;i>=0&&rem>0;i--){
+        if(inventory[i].id===k){const take=Math.min(inventory[i].qty||1,rem);inventory[i].qty-=take;rem-=take;if(inventory[i].qty<=0)inventory.splice(i,1);}
+      }
+    }else resources[k]-=r.cost[k];
+  }
+  const qty=r.qty||1;
+  const existing=inventory.find(it=>it.id===r.id&&ITEMS[r.id].stackable);
+  if(existing){existing.qty=(existing.qty||1)+qty;}
+  else{
+    const newItem={id:r.id,qty:qty};
+    inventory.push(newItem);
+    // 自动放入快捷栏第一个空位
+    const emptySlot=hotbar.indexOf(null);
+    if(emptySlot>=0)hotbar[emptySlot]=newItem;
+  }
+  renderInv();renderHotbar();
+}
+
+function renderInv(){
+  // Resources bar
+  const rb=document.getElementById('resBar');rb.innerHTML='';
+  const resIcons={wood:'🪵',stone:'🪨',fiber:'🌿',thatch:'🌾',hide:'🦴',metal:'⚙️',narcoberry:'🫐'};
+  for(const k in resources){
+    if(resources[k]>0||k==='wood'||k==='stone'||k==='fiber'){
+      const d=document.createElement('div');d.className='res-item';
+      d.textContent=(resIcons[k]||k)+' '+Math.floor(resources[k]);rb.appendChild(d);
+    }
+  }
+  // Inventory grid
+  const ig=document.getElementById('invGrid');ig.innerHTML='';
+  inventory.forEach((it,idx)=>{
+    const item=ITEMS[it.id];if(!item)return;
+    const d=document.createElement('div');d.className='inv-slot';
+    const inHotbar=hotbar.includes(it);
+    d.innerHTML='<div class="ic">'+item.icon+'</div><div>'+item.name+'</div>'+(it.qty>1?'<div class="ct">x'+it.qty+'</div>':'')+(inHotbar?'<div class="ct" style="color:#88cc44">快捷栏</div>':'');
+    d.style.cursor='pointer';
+    d.onclick=()=>{hotbar[hotbarSel]=it;renderInv();renderHotbar();showMsg(item.icon+' 已放入快捷栏'+(hotbarSel+1),800);};
+    ig.appendChild(d);
+  });
+  // Fill empty slots
+  for(let i=inventory.length;i<15;i++){
+    const d=document.createElement('div');d.className='inv-slot';d.innerHTML='<div class="ic" style="opacity:.2">·</div>';ig.appendChild(d);
+  }
+  // Craft list
+  const cl=document.getElementById('craftList');cl.innerHTML='';
+  RECIPES.forEach(r=>{
+    const ok=canCraft(r);
+    const d=document.createElement('div');d.className='craft-item'+(ok?'':' disabled');
+    let costStr='';for(const k in r.cost)costStr+=(resIcons[k]||k)+r.cost[k]+' ';
+    if(r.need)costStr+='(需要'+ITEMS[r.need].name+')';
+    d.innerHTML='<div><div class="cn">'+r.icon+' '+r.name+'</div><div class="cr">'+costStr+'</div></div><button class="cb"'+(ok?'':'disabled')+'>制作</button>';
+    if(ok)d.querySelector('.cb').onclick=()=>craft(r);
+    cl.appendChild(d);
+  });
+}
+
+function toggleInv(){
+  invOpen=!invOpen;
+  document.getElementById('inv').style.display=invOpen?'block':'none';
+  if(invOpen){
+    if(document.pointerLockElement)document.exitPointerLock();
+    renderInv();
+  }else{
+    try{document.querySelector('canvas').requestPointerLock();}catch(e){}
+  }
+}
+
+// ═══════ EQUIP & GATHER ═══════
+let equipped=-1,gatherCD=0;
+let punchAnim=false,punchT=0;
+function startPunch(){punchAnim=true;punchT=0;}
+const projectiles=[];
+const hotbar=[null,null,null,null,null,null,null,null];
+let hotbarSel=0;
+
+function equipItem(idx){
+  hotbarSel=idx;
+  const item=hotbar[idx];
+  equipped=item?inventory.indexOf(item):-1;
+  renderHotbar();
+}
+
+function assignToHotbar(invIdx,slotIdx){
+  if(invIdx<inventory.length)hotbar[slotIdx]=inventory[invIdx];
+  renderHotbar();
+}
+
+function renderHotbar(){
+  const hb=document.getElementById('hotbar');if(!hb)return;hb.innerHTML='';
+  for(let i=0;i<8;i++){
+    const d=document.createElement('div');
+    d.className='hb-slot'+(i===hotbarSel?' active':'');
+    const item=hotbar[i];
+    if(item&&ITEMS[item.id]){
+      const it=ITEMS[item.id];
+      d.innerHTML='<div class="hb-key">'+(i+1)+'</div><div class="hb-ic">'+it.icon+'</div><div class="hb-nm">'+it.name+'</div>'+(item.qty>1?'<div class="hb-qt">'+item.qty+'</div>':'');
+    }else{
+      d.innerHTML='<div class="hb-key">'+(i+1)+'</div><div class="hb-ic" style="opacity:.15">·</div>';
+    }
+    const si=i;d.onclick=()=>{hotbarSel=si;const it2=hotbar[si];equipped=it2?inventory.indexOf(it2):-1;renderHotbar();};
+    hb.appendChild(d);
+  }
+  // 同步equipped
+  const cur=hotbar[hotbarSel];
+  equipped=cur?inventory.indexOf(cur):-1;
+  updateHeldItem();
+}
+
+function consumeItem(id,amt){
+  amt=amt||1;
+  for(let i=inventory.length-1;i>=0&&amt>0;i--){
+    if(inventory[i].id===id){
+      const take=Math.min(inventory[i].qty||1,amt);
+      inventory[i].qty=(inventory[i].qty||1)-take;amt-=take;
+      if(inventory[i].qty<=0){
+        inventory.splice(i,1);
+        if(equipped>=inventory.length)equipped=-1;
+      }
+    }
+  }
+}
+
+function shootProjectile(type,dmg,special){
+  const dir=new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).normalize();
+  const startPos=pos.clone().add(dir.clone().multiplyScalar(1.5));
+  const color=type==='arrow_proj'?0xccaa44:type==='tranq_proj'?0x44ff88:0xaaaaaa;
+  const geo=type==='bola_proj'?new THREE.SphereGeometry(.15,6,6):new THREE.CylinderGeometry(.03,.03,.6,4);
+  const mat=new THREE.MeshBasicMaterial({color});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.copy(startPos);
+  if(type!=='bola_proj'){mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);}
+  scene.add(mesh);
+  projectiles.push({mesh,dir:dir.clone(),speed:80,dmg,special,life:3,type});
+}
+
+function gather(){
+  if(gatherCD>0||invOpen)return;
+  const eq=equipped>=0&&equipped<inventory.length?inventory[equipped]:null;
+  const eqId=eq?eq.id:null;
+
+  // ── Bow & Arrow ──
+  if(eqId==='bow'){
+    // Check for tranq arrows first, then normal arrows
+    if(countItem('tranqArrow')>0){
+      gatherCD=.8;
+      startPunch();
+      consumeItem('tranqArrow',1);
+      shootProjectile('tranq_proj',10,'tranq');
+      showMsg('发射麻醉箭!',600);
+      return;
+    }
+    if(countItem('arrow')>0){
+      gatherCD=.6;
+      startPunch();
+      consumeItem('arrow',1);
+      shootProjectile('arrow_proj',25,null);
+      showMsg('射箭!',600);
+      return;
+    }
+    showMsg('没有箭矢!',800);
+    gatherCD=.3;return;
+  }
+
+  // ── Tranq Arrow (standalone equip, needs bow) ──
+  if(eqId==='tranqArrow'){
+    if(!hasItem('bow')){showMsg('需要装备弓!',800);gatherCD=.3;return;}
+    gatherCD=.8;
+    startPunch();
+    consumeItem('tranqArrow',1);
+    shootProjectile('tranq_proj',10,'tranq');
+    showMsg('发射麻醉箭!',600);
+    return;
+  }
+
+  // ── Bola ──
+  if(eqId==='bola'){
+    gatherCD=1;
+    startPunch();
+    consumeItem('bola',1);
+    shootProjectile('bola_proj',0,'stun');
+    showMsg('投掷流星锤!',600);
+    return;
+  }
+
+  // ── Building placement ──
+  if(eqId==='foundation'||eqId==='wall'||eqId==='workbench'){
+    gatherCD=.5;
+    startPunch();
+    const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+    const placePos=pos.clone().add(fwd.multiplyScalar(3));
+    const groundY=getHeight(placePos.x,placePos.z);
+    placePos.y=Math.max(groundY,0);
+    const woodMat=new THREE.MeshLambertMaterial({color:0x8B6914});
+    if(eqId==='foundation'){
+      const g=new THREE.BoxGeometry(8,.5,8);
+      const m=new THREE.Mesh(g,woodMat);
+      m.position.set(placePos.x,placePos.y+.25,placePos.z);
+      m.castShadow=true;m.receiveShadow=true;
+      m.userData.buildType='foundation';
+      scene.add(m);
+    }else if(eqId==='wall'){
+      const g=new THREE.BoxGeometry(6,4,.3);
+      const m=new THREE.Mesh(g,woodMat);
+      m.rotation.y=yaw;
+      m.position.set(placePos.x,placePos.y+2,placePos.z);
+      m.castShadow=true;m.receiveShadow=true;
+      m.userData.buildType='wall';
+      scene.add(m);
+    }else if(eqId==='workbench'){
+      const grp=new THREE.Group();
+      const top=ap(grp,new THREE.BoxGeometry(1.5,.15,1),woodMat,0,.9,0);
+      ap(grp,new THREE.BoxGeometry(.1,.9,.1),woodMat,-.65,.45,-.4);
+      ap(grp,new THREE.BoxGeometry(.1,.9,.1),woodMat,.65,.45,-.4);
+      ap(grp,new THREE.BoxGeometry(.1,.9,.1),woodMat,-.65,.45,.4);
+      ap(grp,new THREE.BoxGeometry(.1,.9,.1),woodMat,.65,.45,.4);
+      grp.position.set(placePos.x,placePos.y,placePos.z);
+      grp.userData.buildType='workbench';
+      scene.add(grp);
+    }
+    consumeItem(eqId,1);
+    showMsg(ITEMS[eqId].name+' 已放置!',800);
+    return;
+  }
+
+  // ── Melee weapons (axe, pickaxe) ──
+  if(eqId==='axe'||eqId==='pickaxe'){
+    gatherCD=.5;
+    startPunch();
+    const meleeDmg=eqId==='axe'?12:15;
+    // Attack nearby dino
+    let hitDino=false;
+    dinos.forEach(d=>{
+      if(d.hp<=0||hitDino)return;
+      const dx=d.mesh.position.x-pos.x,dz=d.mesh.position.z-pos.z;
+      const dist=Math.sqrt(dx*dx+dz*dz);
+      if(dist<4){
+        // Check if player is roughly facing the dino
+        const toDino=new THREE.Vector3(dx,0,dz).normalize();
+        const lookDir=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+        if(toDino.dot(lookDir)>.5){
+          d.hp-=meleeDmg;hitDino=true;
+          showMsg(ITEMS[eqId].name+' 攻击! -'+meleeDmg+'HP',800);
+          if(d.hp<=0){
+            showMsg(d.name+' 被击杀!',1500);
+            scene.remove(d.mesh);
+            resources.hide+=5+Math.floor(Math.random()*5);
+            resources.meat=(resources.meat||0)+3;
+          }
+        }
+      }
+    });
+    // Also gather resources - 斧头砍树/镐子敲石头(真实位置检测)
+    if(!hitDino){
+      let hitTree2=false,hitRock2=false;
+      for(const tr of trees){const dx3=pos.x-tr.x,dz3=pos.z-tr.z;if(dx3*dx3+dz3*dz3<36){hitTree2=true;break;}}
+      for(const rk of rocks){const dx3=pos.x-rk.x,dz3=pos.z-rk.z;if(dx3*dx3+dz3*dz3<36){hitRock2=true;break;}}
+      if(hitTree2||hitRock2){
+        let woodAmt=0,stoneAmt=0,thatchAmt=0,metalAmt=0;
+        if(hitTree2){woodAmt=eqId==='axe'?5:1;thatchAmt=eqId==='axe'?3:1;}
+        if(hitRock2){stoneAmt=eqId==='pickaxe'?5:1;metalAmt=eqId==='pickaxe'?2:0;}
+        resources.wood+=woodAmt;resources.stone+=stoneAmt;resources.thatch+=thatchAmt;
+        if(metalAmt)resources.metal+=metalAmt;
+        let msg='';if(woodAmt)msg+='+'+woodAmt+'🪵 ';if(stoneAmt)msg+='+'+stoneAmt+'🪨 ';if(thatchAmt)msg+='+'+thatchAmt+'🌾 ';if(metalAmt)msg+='+'+metalAmt+'⚙️';
+        showMsg(msg,800);
+      }else showMsg('附近没有可采集的资源',800);
+    }
+    return;
+  }
+
+  // ── Default: bare hand gathering ──
+  gatherCD=.5;
+  startPunch();
+  // 检测附近草丛
+  let hitBush=false;
+  for(const b of bushes){
+    const bdx=pos.x-b.x,bdz=pos.z-b.z;
+    const bDist=Math.sqrt(bdx*bdx+bdz*bdz);
+    if(bDist<8&&b.fiber>0){
+      const amt=Math.min(b.fiber,2+Math.floor(Math.random()*3));
+      b.fiber-=amt;
+      resources.fiber+=amt;resources.thatch+=Math.ceil(amt*.5);
+      if(Math.random()<.3)resources.narcoberry+=1;
+      // 草丛缩小
+      b.mesh.scale.set(.3,.3,.3);
+      // 10秒后恢复
+      setTimeout(()=>{b.fiber=3+Math.floor(Math.random()*4);b.mesh.scale.set(1,1,1);},10000);
+      showMsg('+'+amt+'🌿纤维 +'+Math.ceil(amt*.5)+'🌾茅草',800);
+      hitBush=true;break;
+    }
+  }
+  if(!hitBush){
+    // 检测附近是否有真实的树(6米内)
+    let nearTree=false;
+    for(const tr of trees){const dx2=pos.x-tr.x,dz2=pos.z-tr.z;if(dx2*dx2+dz2*dz2<36){nearTree=true;break;}}
+    // 检测附近是否有真实的石头(6米内)
+    let nearRock=false;
+    for(const rk of rocks){const dx2=pos.x-rk.x,dz2=pos.z-rk.z;if(dx2*dx2+dz2*dz2<36){nearRock=true;break;}}
+    if(nearTree){
+      resources.wood+=1;resources.thatch+=2;
+      showMsg('+1🪵木头 +2🌾茅草',800);
+    }else if(nearRock){
+      resources.stone+=1;
+      showMsg('+1🪨石头',800);
+    }else{
+      showMsg('附近没有可采集的资源',800);
+    }
+  }
+}
+
+// ═══════ GAME LOOP ═══════
+const clock=new THREE.Clock();
+let dayTime=0; // 0-1, 0=noon, 0.5=midnight
+
+function loop(){
+  requestAnimationFrame(loop);
+  try{
+  const dt=Math.min(clock.getDelta(),.05);
+
+  if(state!=='playing'){
+    camera.position.set(0,30,220);camera.lookAt(0,10,0);
+    ren.render(scene,camera);return;
+  }
+
+  // Day/night cycle
+  dayTime=(dayTime+dt*.0007)%1; // 现实1分钟=游戏1小时，24分钟=1天
+  const sunAngle=dayTime*Math.PI*2;
+  const dayBright=Math.max(0,Math.cos(sunAngle));
+  sun.intensity=.6+dayBright*2;
+  ambLight.intensity=.2+dayBright*.5;
+  hemiLight.intensity=.3+dayBright*.7;
+  fillLight.intensity=.15+dayBright*.4;
+  // 天空渐变(白天亮蓝→黄昏橙→夜晚深蓝)
+  const sunSet=Math.max(0,1-Math.abs(dayBright-.3)*4);
+  const skyR=.15+dayBright*.55+sunSet*.3,skyG=.2+dayBright*.55+sunSet*.1,skyB=.35+dayBright*.55-sunSet*.1;
+  scene.background.setRGB(skyR,skyG,skyB);
+  scene.fog.color.setRGB(skyR,skyG,skyB);
+  // 太阳颜色(白天白→黄昏橙)
+  const sunR=1,sunG=.95-sunSet*.3,sunB=.88-sunSet*.5;
+  sun.color.setRGB(sunR,sunG,sunB);
+  sun.position.set(Math.cos(sunAngle)*500,Math.sin(sunAngle)*500+80,200);
+  sunMesh.position.copy(sun.position);
+  const timeStr=dayBright>.5?'☀️ 白天':dayBright>.1?'🌅 黄昏':'🌙 夜晚';
+  document.getElementById('dayTime').textContent=timeStr;
+
+  // Player movement
+  const sprint=K['ShiftLeft']||K['ShiftRight'];
+  const groundHere=getHeight(pos.x,pos.z);
+  const inWaterNow=groundHere<-2;
+  const spd=(sprint?14:7)*(inWaterNow?.4:1)*dt;
+  const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  const mv=new THREE.Vector3();
+  if(K['KeyW'])mv.add(fwd);if(K['KeyS'])mv.sub(fwd);
+  if(K['KeyD'])mv.add(right);if(K['KeyA'])mv.sub(right);
+  if(mv.length()>0)mv.normalize().multiplyScalar(spd);
+  pos.x+=mv.x;pos.z+=mv.z;
+
+  // Keep in bounds
+  pos.x=Math.max(-WORLD/2+5,Math.min(WORLD/2-5,pos.x));
+  pos.z=Math.max(-WORLD/2+5,Math.min(WORLD/2-5,pos.z));
+
+  // Gravity + terrain following
+  if(K['Space']&&grounded){vy=8;grounded=false;}
+  vy-=20*dt;pos.y+=vy*dt;
+  const groundH=getHeight(pos.x,pos.z)+1.7;
+  if(pos.y<=groundH){pos.y=groundH;vy=0;grounded=true;}
+  // 水下逻辑
+  const waterLevel=0;
+  const gndH=getHeight(pos.x,pos.z);
+  const underwater=gndH<-2&&pos.y<waterLevel+1.7;
+  const inWater=gndH<-2;
+  if(inWater){
+    // 在水中：减少重力，可以上下游
+    vy*=.92; // 水中阻力
+    if(K['Space'])vy=3; // 上浮
+    if(K['ShiftLeft']||K['ShiftRight'])vy=-3; // 下潜
+    // 不能沉到海底以下
+    const seaFloor=getHeight(pos.x,pos.z)+1.7;
+    if(pos.y<seaFloor)pos.y=seaFloor;
+    // 消耗氧气(用thirst代替)
+    thirst-=dt*2;
+    if(thirst<=0)hp-=dt*10; // 没氧气就掉血
+  }
+
+  camera.position.copy(pos);
+  camera.rotation.set(0,0,0);camera.rotateY(yaw);camera.rotateX(pitch);
+
+  // 水下视觉效果
+  const uwFx=document.getElementById('underwaterFx');
+  if(underwater){
+    scene.fog.color.setRGB(.05,.15,.35);
+    scene.fog.density=.006;
+    uwFx.style.display='block';
+  }else{
+    scene.fog.density=.0003;
+    uwFx.style.display='none';
+  }
+
+  // 手臂bob动画
+  if(mv.length()>.01&&grounded){
+    bobPh+=dt*(sprint?12:8);
+    handG.position.x=.22+Math.sin(bobPh)*.008;
+    handG.position.y=-.18+Math.abs(Math.cos(bobPh))*.01;
+    handG.rotation.z=Math.sin(bobPh)*.006;
+  }else{
+    handG.position.x=THREE.MathUtils.lerp(handG.position.x,.22,.1);
+    handG.position.y=THREE.MathUtils.lerp(handG.position.y,-.18,.1);
+    handG.rotation.z=THREE.MathUtils.lerp(handG.rotation.z,0,.1);
+  }
+
+  // 水面波浪动画 (disabled for performance)
+  // const wv=water.geometry.attributes.position.array;
+  // const wTime=Date.now()*.001;
+  // for(let i=0;i<wv.length;i+=3){wv[i+2]=Math.sin(wv[i]*.02+wTime)*0.15+Math.cos(wv[i+1]*.02+wTime*1.3)*0.1;}
+  // water.geometry.attributes.position.needsUpdate=true;
+
+  // 挥拳动画
+  if(punchAnim){
+    punchT+=dt;
+    if(punchT<.08){
+      // 阶段1：收拳(手往后拉+往上抬)
+      handG.rotation.x=THREE.MathUtils.lerp(handG.rotation.x,.3,.4);
+      handG.position.z=THREE.MathUtils.lerp(handG.position.z,-.25,.3);
+      handG.position.y=THREE.MathUtils.lerp(handG.position.y,-.14,.3);
+    }else if(punchT<.18){
+      // 阶段2：快速出拳(手往前冲+往下砸)
+      handG.rotation.x=THREE.MathUtils.lerp(handG.rotation.x,-.6,.5);
+      handG.position.z=THREE.MathUtils.lerp(handG.position.z,-.4,.5);
+      handG.position.y=THREE.MathUtils.lerp(handG.position.y,-.22,.4);
+      handG.rotation.z=THREE.MathUtils.lerp(handG.rotation.z,.1,.3);
+    }else if(punchT<.25){
+      // 阶段3：命中停顿(微震)
+      handG.position.z+=Math.sin(punchT*80)*.003;
+      handG.position.y+=Math.sin(punchT*60)*.002;
+    }else if(punchT<.45){
+      // 阶段4：回收(慢慢回到原位)
+      handG.rotation.x=THREE.MathUtils.lerp(handG.rotation.x,0,.12);
+      handG.position.z=THREE.MathUtils.lerp(handG.position.z,-.3,.1);
+      handG.position.y=THREE.MathUtils.lerp(handG.position.y,-.18,.1);
+      handG.rotation.z=THREE.MathUtils.lerp(handG.rotation.z,0,.15);
+    }else{
+      // 完成
+      handG.rotation.x=0;handG.rotation.z=0;
+      handG.position.set(0,-.06,-.1);
+      punchAnim=false;punchT=0;
+    }
+  }
+
+  // Gather cooldown
+  if(gatherCD>0)gatherCD-=dt;
+
+  // ── Projectile updates ──
+  for(let pi=projectiles.length-1;pi>=0;pi--){
+    const p=projectiles[pi];
+    p.mesh.position.addScaledVector(p.dir,p.speed*dt);
+    p.life-=dt;
+    // Check hit against dinos
+    let hit=false;
+    const hitRange=p.type==='bola_proj'?3:2;
+    for(let di=0;di<dinos.length;di++){
+      const d=dinos[di];if(d.hp<=0)continue;
+      const dx=p.mesh.position.x-d.mesh.position.x;
+      const dy=p.mesh.position.y-d.mesh.position.y;
+      const dz=p.mesh.position.z-d.mesh.position.z;
+      const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+      if(dist<hitRange){
+        hit=true;
+        d.hp-=p.dmg;
+        if(p.special==='tranq'){
+          d.attackCD=Math.max(d.attackCD,8);
+          showMsg(d.name+' 被麻醉! -'+p.dmg+'HP',1200);
+        }else if(p.special==='stun'){
+          const origSpeed=d.speed;
+          d.attackCD=Math.max(d.attackCD,15);
+          d.speed=0;
+          showMsg(d.name+' 被缠住了!',1500);
+          setTimeout(()=>{d.speed=origSpeed;},10000);
+        }else{
+          showMsg(d.name+' 被射中! -'+p.dmg+'HP',1000);
+        }
+        if(d.hp<=0){
+          showMsg(d.name+' 被击杀!',1500);
+          scene.remove(d.mesh);
+          resources.hide+=5+Math.floor(Math.random()*5);
+          resources.meat=(resources.meat||0)+3;
+        }
+        break;
+      }
+    }
+    if(hit||p.life<=0){
+      scene.remove(p.mesh);
+      projectiles.splice(pi,1);
+    }
+  }
+
+  // Don't process movement when inventory is open
+  if(invOpen){ren.render(scene,camera);return;}
+
+  // Hunger/Thirst
+  food=Math.max(0,food-dt*.3);
+  thirst=Math.max(0,thirst-dt*.5);
+  if(sprint&&mv.length()>0){food-=dt*.3;thirst-=dt*.3;}
+  if(food<=0||thirst<=0)hp-=dt*5;
+  // Heal if well fed
+  if(food>50&&thirst>50&&hp<100)hp+=dt*2;
+
+  // Update HUD
+  document.querySelector('#hp .v').textContent=Math.ceil(hp);
+  document.querySelector('#food .v').textContent=Math.ceil(food);
+  document.querySelector('#water .v').textContent=Math.ceil(thirst);
+
+  // Death
+  if(hp<=0){
+    hp=0;state='dead';
+    document.getElementById('overlay').innerHTML='<h1 style="color:#ff4444">你死了</h1><div class="sub">被恐龙吃掉了...</div><button class="pbtn" onclick="location.reload()">重新开始</button>';
+    document.getElementById('overlay').style.display='flex';
+  }
+
+  // ═══════ DINOSAUR AI ═══════
+  let nearestDinoInfo=null;let nearestDist=999;
+  dinos.forEach(d=>{
+    if(d.hp<=0)return;
+    const dx=pos.x-d.mesh.position.x,dz=pos.z-d.mesh.position.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+
+    // Show info only when crosshair aims at dino
+    if(dist<30){
+      const toDino=new THREE.Vector3(d.mesh.position.x-pos.x,0,d.mesh.position.z-pos.z).normalize();
+      const lookDir=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+      if(toDino.dot(lookDir)>.97&&dist<nearestDist){nearestDist=dist;nearestDinoInfo=d;}
+    }
+
+    // AI behavior
+    // 逃跑型(翼龙)：被靠近时反方向飞走
+    if(DINO_TYPES[d.type].flee&&dist<25){
+      d.state='flee';
+      const fleeDir=new THREE.Vector3(-dx,0,-dz).normalize();
+      d.mesh.position.addScaledVector(fleeDir,d.speed*1.5*dt);
+      d.mesh.rotation.y=Math.atan2(-dx,-dz)+Math.PI;
+    }
+    else if(d.hostile&&dist<40){
+      // Hostile: chase player
+      d.state='chase';
+      const dir=new THREE.Vector3(dx,0,dz).normalize();
+      d.mesh.position.addScaledVector(dir,d.speed*dt);
+      d.mesh.rotation.y=Math.atan2(dx,dz)+Math.PI;
+
+      // Attack
+      if(dist<d.range){
+        d.attackCD-=dt;
+        if(d.attackCD<=0){
+          hp-=d.dmg;d.attackCD=1.5;
+          document.getElementById('hp').style.animation='none';
+          setTimeout(()=>document.getElementById('hp').style.animation='',10);
+          showMsg(d.name+' 攻击了你! -'+d.dmg+'HP',1000);
+        }
+      }
+    }else{
+      // Wander
+      d.state='wander';
+      if(!d.targetPos||d.mesh.position.distanceTo(d.targetPos)<3){
+        d.targetPos=new THREE.Vector3(
+          d.mesh.position.x+(Math.random()-.5)*60,
+          0,
+          d.mesh.position.z+(Math.random()-.5)*60
+        );
+      }
+      const toTarget=d.targetPos.clone().sub(d.mesh.position);toTarget.y=0;
+      if(toTarget.length()>1){
+        toTarget.normalize();
+        d.mesh.position.addScaledVector(toTarget,d.speed*.3*dt);
+        d.mesh.rotation.y=Math.atan2(toTarget.x,toTarget.z)+Math.PI;
+      }
+    }
+
+    // Terrain follow
+    if(!d.flying){
+      const dh=getHeight(d.mesh.position.x,d.mesh.position.z);
+      d.mesh.position.y=Math.max(dh,0);
+    }else{
+      // Flying dinos
+      const groundBelow=getHeight(d.mesh.position.x,d.mesh.position.z);
+      d.mesh.position.y=Math.max(groundBelow,0)+d.flyH+Math.sin(Date.now()*.001+d.walkPhase)*3;
+    }
+
+    // Walk animation
+    d.walkPhase+=dt*d.speed*.5;
+    const legs=d.mesh.userData.legs;
+    if(legs){
+      const swing=Math.sin(d.walkPhase)*.3;
+      legs[0].rotation.x=swing;legs[1].rotation.x=-swing;
+      legs[2].rotation.x=-swing;legs[3].rotation.x=swing;
+    }
+    // Wing animation
+    if(d.mesh.userData.wings){
+      const wf=Math.sin(Date.now()*.005+d.walkPhase)*.4;
+      d.mesh.userData.wings[0].rotation.z=.2+wf;
+      d.mesh.userData.wings[1].rotation.z=-.2-wf;
+    }
+    // Jaw animation (carnivores near player)
+    if(d.mesh.userData.jaw&&d.hostile&&dist<15){
+      d.mesh.userData.jaw.rotation.x=Math.sin(Date.now()*.008)*.15;
+    }
+  });
+
+  // Dino info display
+  const dinoInfoEl=document.getElementById('dinoInfo');
+  if(nearestDinoInfo){
+    dinoInfoEl.style.opacity='1';
+    const d=nearestDinoInfo;
+    dinoInfoEl.innerHTML=`<b>${d.name}</b> | HP: ${Math.ceil(d.hp)}/${d.maxHp} | ${d.hostile?'⚠️ 危险':'🌿 温顺'}`;
+  }else dinoInfoEl.style.opacity='0';
+
+  // Minimap
+  const mmCtx=document.getElementById('mmCanvas').getContext('2d');
+  mmCtx.fillStyle='rgba(0,30,10,.8)';mmCtx.fillRect(0,0,160,160);
+  // Player dot
+  mmCtx.fillStyle='#fff';mmCtx.beginPath();mmCtx.arc(80,80,3,0,Math.PI*2);mmCtx.fill();
+  // Player direction
+  mmCtx.strokeStyle='#fff';mmCtx.lineWidth=1;
+  mmCtx.beginPath();mmCtx.moveTo(80,80);mmCtx.lineTo(80-Math.sin(yaw)*12,80-Math.cos(yaw)*12);mmCtx.stroke();
+  // Beacon dots on minimap
+  beacons.forEach(b=>{
+    const bx2=80+(b.x-pos.x)*.01;
+    const bz2=80+(b.z-pos.z)*.01;
+    if(bx2>0&&bx2<160&&bz2>0&&bz2<160){
+      mmCtx.fillStyle='#'+b.color.toString(16).padStart(6,'0');
+      mmCtx.beginPath();mmCtx.arc(bx2,bz2,4,0,Math.PI*2);mmCtx.fill();
+      mmCtx.strokeStyle='#fff';mmCtx.lineWidth=.5;mmCtx.stroke();
+    }
+  });
+  // Dino dots
+  dinos.forEach(d=>{
+    if(d.hp<=0)return;
+    const mx=80+(d.mesh.position.x-pos.x)*.18;
+    const mz=80+(d.mesh.position.z-pos.z)*.18;
+    if(mx<0||mx>160||mz<0||mz>160)return;
+    mmCtx.fillStyle=d.hostile?'#ff4444':'#44ff44';
+    mmCtx.beginPath();mmCtx.arc(mx,mz,2,0,Math.PI*2);mmCtx.fill();
+  });
+
+  ren.render(scene,camera);
+  }catch(err){console.error(err);}
+}
+loop();
+</script>
+</body></html>
