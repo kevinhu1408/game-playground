@@ -789,9 +789,9 @@ function animate(){
       if(grounded){
         vy=JUMP;grounded=false;respawnSafe=0;jumpGuard=.15;
         jumpCount=1;snd('jump');addCombo('跳跃');
-      }else if(!wallRunning){
-        vy=DOUBLE_JUMP;respawnSafe=0;
-        snd('jump');addCombo('飞行');
+      }else if(jumpCount<2&&!wallRunning){
+        vy=DOUBLE_JUMP;jumpCount=2;respawnSafe=0;
+        snd('jump');addCombo('二段跳');
       }
       keys2['Space']=false;
     }
