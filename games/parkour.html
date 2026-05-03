@@ -65,7 +65,7 @@ canvas{display:block}
   <div class="move-key" id="mkJump">空格 跳跃</div>
   <div class="move-key" id="mkSlide">C/Ctrl 滑行</div>
   <div class="move-key" id="mkWall">靠墙 墙跑</div>
-  <div class="move-key" id="mkDash">Shift 冲刺</div>
+  <div class="move-key" id="mkDash">Shift 加速</div>
 </div>
 
 <div id="combo"><div id="comboText"></div><div id="comboCount"></div></div>
@@ -80,7 +80,7 @@ canvas{display:block}
     <span class="ck">鼠标</span><span>视角</span>
     <span class="ck">空格</span><span>跳跃（空中可二段跳）</span>
     <span class="ck">Ctrl</span><span>滑行（穿过低矮障碍）</span>
-    <span class="ck">Shift</span><span>冲刺加速</span>
+    <span class="ck">Shift</span><span>加速</span>
     <span class="ck">E</span><span>抓钩（朝准星方向）</span>
     <span class="ck">R</span><span>重生</span>
   </div>
@@ -118,11 +118,11 @@ else if(type==='step'){const n=actx.createBufferSource();const buf=actx.createBu
 // ===== SCENE =====
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x1a2a4a);
-scene.fog=new THREE.Fog(0x1a2a4a,80,250);
+scene.fog=new THREE.Fog(0x1a2a4a,100,400);
 const camera=new THREE.PerspectiveCamera(80,innerWidth/innerHeight,.1,500);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.shadowMap.enabled=true;
+renderer.shadowMap.enabled=false;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.4;
 document.body.appendChild(renderer.domElement);
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
@@ -131,7 +131,7 @@ window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camer
 scene.add(new THREE.AmbientLight(0x667799,.7));
 scene.add(new THREE.HemisphereLight(0x88bbff,0x445533,.5));
 const sun=new THREE.DirectionalLight(0xfff5e0,1.5);sun.position.set(50,80,30);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);const sc=sun.shadow.camera;sc.left=-100;sc.right=100;sc.top=100;sc.bottom=-100;sc.far=200;
+sun.shadow.mapSize.set(1024,1024);const sc=sun.shadow.camera;sc.left=-100;sc.right=100;sc.top=100;sc.bottom=-100;sc.far=200;
 scene.add(sun);
 
 // ===== LEVEL BUILDER =====
@@ -140,14 +140,14 @@ const checkpoints=[];
 const walls=[];// for wallrunning
 const hookPoints=[];
 
-const matFloor=new THREE.MeshStandardMaterial({color:0x2a2a3a,roughness:.8});
-const matWall=new THREE.MeshStandardMaterial({color:0x3a3a4a,roughness:.7});
-const matNeon1=new THREE.MeshStandardMaterial({color:0x00aaff,emissive:0x004466,roughness:.3});
-const matNeon2=new THREE.MeshStandardMaterial({color:0x00ffaa,emissive:0x003322,roughness:.3});
-const matNeon3=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0x331100,roughness:.3});
-const matGlass=new THREE.MeshStandardMaterial({color:0x4488aa,transparent:true,opacity:.3,roughness:.1});
-const matDanger=new THREE.MeshStandardMaterial({color:0xff2222,emissive:0x440000,roughness:.5});
-const matBounce=new THREE.MeshStandardMaterial({color:0xffaa00,emissive:0x332200,roughness:.4});
+const matFloor=new THREE.MeshLambertMaterial({color:0x6a6a8a});
+const matWall=new THREE.MeshLambertMaterial({color:0x3a3a4a});
+const matNeon1=new THREE.MeshLambertMaterial({color:0x00aaff,emissive:0x004466});
+const matNeon2=new THREE.MeshLambertMaterial({color:0x00ffaa});
+const matNeon3=new THREE.MeshLambertMaterial({color:0xff6600});
+const matGlass=new THREE.MeshLambertMaterial({color:0x4488aa});
+const matDanger=new THREE.MeshLambertMaterial({color:0xff2222});
+const matBounce=new THREE.MeshLambertMaterial({color:0xffaa00});
 
 function addPlatform(x,y,z,w,h,d,mat,type){
   const geo=new THREE.BoxGeometry(w,h,d);
@@ -175,8 +175,8 @@ function addCheckpoint(x,y,z,index){
 
 function addHookPoint(x,y,z){
   const hG=new THREE.Group();
-  const metalM=new THREE.MeshStandardMaterial({color:0x888888,roughness:.3,metalness:.6});
-  const goldM=new THREE.MeshStandardMaterial({color:0xddaa22,roughness:.25,metalness:.7});
+  const metalM=new THREE.MeshLambertMaterial({color:0x888888});
+  const goldM=new THREE.MeshLambertMaterial({color:0xddaa22});
   // 中心环(钩子挂点)
   const ring=new THREE.Mesh(new THREE.TorusGeometry(.35,.06,10,16),goldM);
   ring.rotation.x=Math.PI/2;hG.add(ring);
@@ -276,34 +276,75 @@ addPlatform(0,23.8,-288,6,.5,1,matDanger,'obstacle');// slide
 addPlatform(0,22.8,-293,6,.6,1,matNeon3);// jump
 addPlatform(0,23.8,-298,6,.5,1,matDanger,'obstacle');// slide
 
-// Section 9: Final descent - 下坡冲刺
-addPlatform(0,20,-310,6,1,6);
-addPlatform(4,18,-318,4,1,4);
-addPlatform(-4,16,-326,4,1,4);
-addPlatform(0,14,-334,4,1,4);
-addPlatform(4,12,-342,4,1,4);
-addPlatform(-4,10,-350,4,1,4);
-addPlatform(0,8,-358,6,1,6);
-addCheckpoint(0,10,-358,6);
+// Section 9: 旋转跳台(螺旋上升)
+addPlatform(0,22,-310,5,1,5);
+for(let si=0;si<6;si++){
+  const a=si*.9;
+  addPlatform(Math.cos(a)*6,22+si*1.5,-318-si*5,3,1,3);
+}
+addPlatform(0,31,-350,5,1,5);
+addCheckpoint(0,33,-350,7);
+
+// Section 10: 双墙夹道冲刺
+addPlatform(0,31,-358,4,1,4);
+addWallRun(-4,35,-375,.5,10,30,'right');
+addWallRun(4,35,-375,.5,10,30,'left');
+addPlatform(0,33,-392,5,1,5);
+addCheckpoint(0,35,-392,8);
+
+// Section 11: 连续滑铲+跳跃交替
+addPlatform(0,33,-410,6,1,40);
+addPlatform(0,34.8,-396,6,.5,1,matDanger,'obstacle');// 滑
+addPlatform(0,33.8,-401,6,.6,1,matNeon3);// 跳
+addPlatform(0,34.8,-406,6,.5,1,matDanger,'obstacle');// 滑
+addPlatform(0,33.8,-411,6,.6,1,matNeon3);// 跳
+addPlatform(0,34.8,-416,6,.5,1,matDanger,'obstacle');// 滑
+addPlatform(0,33.8,-421,6,.6,1,matNeon3);// 跳
+addPlatform(0,34.8,-426,6,.5,1,matDanger,'obstacle');// 滑
+addCheckpoint(0,35,-430,9);
+
+// Section 12: 钩爪+弹跳组合
+addPlatform(0,33,-440,4,1,4);
+addPlatform(0,30,-448,4,1,4,matBounce,'bounce');
+addHookPoint(5,38,-456);
+addPlatform(8,35,-464,4,1,4);
+addHookPoint(-3,40,-472);
+addPlatform(-6,37,-480,4,1,4);
+addPlatform(0,37,-488,5,1,5);
+addCheckpoint(0,39,-488,10);
+
+// Section 13: 极窄平衡木+跳跃
+addPlatform(0,37,-496,1,1,16);
+addPlatform(4,37,-514,1,1,12);
+addPlatform(-4,37,-528,1,1,12);
+addPlatform(0,37,-542,5,1,5);
+addCheckpoint(0,39,-542,11);
+
+// Section 14: Final descent - 下坡冲刺
+addPlatform(0,35,-552,6,1,6);
+addPlatform(5,33,-560,4,1,4);
+addPlatform(-5,31,-568,4,1,4);
+addPlatform(0,29,-576,4,1,4);
+addPlatform(5,27,-584,4,1,4);
+addPlatform(-5,25,-592,4,1,4);
+addPlatform(0,23,-600,4,1,4);
+addPlatform(0,21,-608,6,1,6);
+addCheckpoint(0,23,-608,12);
 
 // FINISH - 大平台终点
-addPlatform(0,8,-372,16,1,16,matNeon2);
-addNeonStrip(-6,8.51,-372,.3,14,matNeon1);
-addNeonStrip(6,8.51,-372,.3,14,matNeon1);
-const finishLight=new THREE.PointLight(0x00ffaa,1,15);finishLight.position.set(0,11,-372);scene.add(finishLight);
+addPlatform(0,21,-622,16,1,16,matNeon2);
+addNeonStrip(-6,21.51,-622,.3,14,matNeon1);
+addNeonStrip(6,21.51,-622,.3,14,matNeon1);
 
-// Background buildings (远离跑道)
-for(let i=0;i<30;i++){
+// Background buildings (减少数量+去掉neon条)
+const lvl1Extras=[];
+for(let i=0;i<15;i++){
   const bw=4+Math.random()*8,bh=10+Math.random()*50,bd=4+Math.random()*8;
-  const bz=-Math.random()*400;
+  const bz=-Math.random()*650;
   const side=Math.random()>.5?1:-1;
-  const bx=side*(80+Math.random()*60); // 最近80米，不会挡路
+  const bx=side*(90+Math.random()*60);
   const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd),new THREE.MeshLambertMaterial({color:0x1a1a2a}));
-  m.position.set(bx,bh/2,bz);scene.add(m);
-  if(Math.random()>.5){
-    const ns=new THREE.Mesh(new THREE.BoxGeometry(bw+.1,.15,bd+.1),[matNeon1,matNeon2,matNeon3][Math.floor(Math.random()*3)]);
-    ns.position.set(m.position.x,bh*.3+Math.random()*bh*.4,m.position.z);scene.add(ns);
-  }
+  m.position.set(bx,bh/2,bz);scene.add(m);lvl1Extras.push(m);
 }
 
 // Ground below (death zone)
@@ -317,7 +358,7 @@ let yaw=0,pitch=0,vy=0;
 let grounded=false,canDoubleJump=true,sliding=false,wallRunning=false,wallRunSide=0,wallRunTimer=0,jumpCount=0;
 let dashing=false,dashTimer=0,dashCooldown=0;
 let hooking=false,hookTarget=null,hookTimer=0;
-let speed=0,maxSpeed=12,sprintSpeed=18;
+let speed=0,maxSpeed=12,sprintSpeed=12;
 let combo=0,maxCombo=0,tricks=0;
 let comboTimer=0;
 let timer=0,finished=false;
@@ -371,9 +412,9 @@ document.addEventListener('mousemove',e=>{
   pitch=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,pitch));
 });
 document.addEventListener('mousedown',()=>{
-  if(!pointerLocked)try{renderer.domElement.requestPointerLock();}catch(ex){}
+  if(state==='playing'&&!pointerLocked)try{renderer.domElement.requestPointerLock();}catch(ex){}
 });
-document.addEventListener('pointerlockchange',()=>{pointerLocked=!!document.pointerLockElement;});
+document.addEventListener('pointerlockchange',()=>{pointerLocked=!!document.pointerLockElement;document.body.style.cursor=pointerLocked?'none':'default';});
 
 function tryHook(){
   if(hooking)return;
@@ -446,7 +487,7 @@ function checkWallRun(){
       (pos.z>w.z-w.d/2&&pos.z<w.z+w.d/2):
       (pos.x>w.x-w.w/2&&pos.x<w.x+w.w/2);
     if(dist<1.5&&inRange&&inDepth&&vy<2){
-      wallRunning=true;wallRunTimer=1.2;wallRunSide=w.side==='left'?1:-1;
+      wallRunning=true;wallRunTimer=.8;wallRunSide=w.side==='left'?1:-1;
       vy=3;canDoubleJump=true;
       snd('wallrun');addCombo('墙跑');
       break;
@@ -456,36 +497,44 @@ function checkWallRun(){
 
 // ===== START =====
 document.getElementById('startBtn').addEventListener('click',()=>{
-  initAudio();state='playing';
+  initAudio();
   document.getElementById('overlay').style.display='none';
-  document.body.style.cursor='none';
-  renderer.domElement.requestPointerLock();
   document.getElementById('checkpoint').textContent=`检查点: 0/${checkpoints.length}`;
-  showMsg('出发!',1500);
+  showMsg('点击屏幕开始!',2000);
+  setTimeout(()=>{state='playing';},300);
 });
 
 function loadLevel(lvl){
+  try{
   // Clear old level objects
-  platforms.forEach(p=>scene.remove(p.mesh));platforms.length=0;
-  checkpoints.forEach(c=>{scene.remove(c.ring);scene.remove(c.glow);});checkpoints.length=0;
-  wallRunSurfaces.forEach(w=>scene.remove(w.mesh));wallRunSurfaces.length=0;
-  hookPoints.forEach(h=>{scene.remove(h.mesh);scene.remove(h.glow);});hookPoints.length=0;
+  platforms.forEach(p=>{try{scene.remove(p.mesh);}catch(e){}});platforms.length=0;
+  checkpoints.forEach(c=>{try{scene.remove(c.ring);scene.remove(c.glow);}catch(e){}});checkpoints.length=0;
+  walls.forEach(w=>{try{if(w.mesh)scene.remove(w.mesh);}catch(e){}});
+  walls.length=0;
+  hookPoints.forEach(h=>{try{scene.remove(h.mesh);if(h.glow)scene.remove(h.glow);}catch(e){}});hookPoints.length=0;
   if(window._portal){scene.remove(window._portal);window._portal=null;}
+  // 清掉第一关的全局物体
+  if(typeof deathFloor!=='undefined')scene.remove(deathFloor);
+  if(typeof lvl1Extras!=='undefined')lvl1Extras.forEach(m=>scene.remove(m));
   if(window._hookLine){scene.remove(window._hookLine);window._hookLine=null;}
+  if(window._lvlExtras){window._lvlExtras.forEach(m=>{try{scene.remove(m);}catch(e){}});window._lvlExtras=null;}
+  window._lvlExtras=[];
 
   // Reset state
   finished=false;cpCollected=0;timer=0;
   sliding=false;wallRunning=false;hooking=false;dashing=false;
   jumpCount=0;speed=0;combo=0;maxCombo=0;tricks=0;
 
-  if(lvl===2)buildLevel2();
+  if(lvl===2){buildLevel2();alert('第2关加载完成! 平台:'+platforms.length+' 检查点:'+checkpoints.length);}
+  if(lvl===3){buildLevel3();alert('第3关加载完成! 平台:'+platforms.length);}
+  }catch(err){alert('loadLevel错误: '+err.message);}
 
-  // 找起点平台顶部，把玩家放上去
-  let startY=2;
+  // 找起点平台顶部，把玩家直接放上去
+  let startY=.6; // 默认低一点
   for(const p of platforms){
     if(Math.abs(p.x)<p.w/2+1&&Math.abs(p.z)<p.d/2+1){
       const ptop=p.y+p.h/2;
-      if(ptop>startY-2)startY=ptop+.05;
+      startY=ptop+.05;break; // 找到第一个就用
     }
   }
   pos.set(0,startY,0);vy=0;grounded=true;respawnSafe=2;respawnPos.set(0,startY,0);
@@ -497,6 +546,19 @@ function loadLevel(lvl){
 
 function buildLevel2(){
   // Level 2: Ice Theme - 冰雪跑酷
+  // 地面(视觉+死亡检测)
+  const ground2=new THREE.Mesh(new THREE.PlaneGeometry(300,400),new THREE.MeshLambertMaterial({color:0x1a2a3a}));
+  ground2.rotation.x=-Math.PI/2;ground2.position.set(0,-10,-150);scene.add(ground2);
+  window._lvlExtras.push(ground2);
+  // 背景建筑
+  for(let i=0;i<15;i++){
+    const bw=4+Math.random()*8,bh=10+Math.random()*40,bd=4+Math.random()*8;
+    const bz=-Math.random()*320;
+    const side=Math.random()>.5?1:-1;
+    const bx=side*(60+Math.random()*50);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd),new THREE.MeshLambertMaterial({color:0x1a2a3a}));
+    m.position.set(bx,bh/2-10,bz);scene.add(m);window._lvlExtras.push(m);
+  }
   // Starting platform
   addPlatform(0,0,0,12,1,12);
 
@@ -555,6 +617,101 @@ function buildLevel2(){
   addCheckpoint(0,4,-300,6);
 }
 
+function buildLevel3(){
+  // Level 3: Sky Theme - 天空跑酷
+  // 地面+背景建筑
+  const ground3=new THREE.Mesh(new THREE.PlaneGeometry(300,500),new THREE.MeshLambertMaterial({color:0x1a1a2e}));
+  ground3.rotation.x=-Math.PI/2;ground3.position.set(0,-10,-200);scene.add(ground3);
+  window._lvlExtras.push(ground3);
+  for(let i=0;i<15;i++){
+    const bw=4+Math.random()*8,bh=10+Math.random()*40,bd=4+Math.random()*8;
+    const bz=-Math.random()*470;
+    const side=Math.random()>.5?1:-1;
+    const bx=side*(60+Math.random()*50);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd),new THREE.MeshLambertMaterial({color:0x1a1a2e}));
+    m.position.set(bx,bh/2-10,bz);scene.add(m);window._lvlExtras.push(m);
+  }
+  addPlatform(0,0,0,12,1,12);
+
+  // Section 1: 连续小跳台(左右交替上升)
+  addPlatform(3,1,-8,3,1,3);
+  addPlatform(-3,2,-16,3,1,3);
+  addPlatform(3,3,-24,3,1,3);
+  addPlatform(-3,4,-32,3,1,3);
+  addPlatform(0,5,-40,3,1,3);
+  addPlatform(0,6,-48,4,1,4);
+  addCheckpoint(0,7,-48,0);
+
+  // Section 2: 长跑道+交替滑铲跳跃
+  addPlatform(0,6,-68,6,1,36);
+  addPlatform(0,7.8,-54,6,.5,1,matDanger,'obstacle');
+  addPlatform(0,6.8,-60,6,.6,1,matNeon3);
+  addPlatform(0,7.8,-66,6,.5,1,matDanger,'obstacle');
+  addPlatform(0,6.8,-72,6,.6,1,matNeon3);
+  addPlatform(0,7.8,-78,6,.5,1,matDanger,'obstacle');
+  addCheckpoint(0,8,-86,1);
+
+  // Section 3: 三面墙壁跑(左→右→左)
+  addPlatform(0,6,-94,4,1,4);
+  addWallRun(-4,10,-106,.5,10,18,'right');
+  addPlatform(0,8,-116,3,1,3);
+  addWallRun(4,12,-126,.5,10,16,'left');
+  addPlatform(0,10,-136,3,1,3);
+  addWallRun(-4,14,-146,.5,10,16,'right');
+  addPlatform(0,12,-156,5,1,5);
+  addCheckpoint(0,13,-156,2);
+
+  // Section 4: 弹跳+钩爪组合
+  addPlatform(0,12,-164,4,1,4,matBounce,'bounce');
+  addHookPoint(0,20,-176);
+  addPlatform(0,17,-186,4,1,4);
+  addPlatform(0,17,-194,4,1,4,matBounce,'bounce');
+  addHookPoint(5,24,-204);
+  addPlatform(5,21,-214,5,1,5);
+  addCheckpoint(5,22,-214,3);
+
+  // Section 5: 之字窄梁+跳跃
+  addPlatform(5,21,-222,1,1,10);
+  addPlatform(0,22,-234,3,1,3);
+  addPlatform(-5,21,-240,1,1,10);
+  addPlatform(0,22,-252,3,1,3);
+  addPlatform(5,21,-258,1,1,10);
+  addPlatform(0,21,-270,5,1,5);
+  addCheckpoint(0,22,-270,4);
+
+  // Section 6: 螺旋上升(大圈)
+  for(let i=0;i<10;i++){
+    const a=i*.7;
+    addPlatform(Math.cos(a)*7,21+i*1.3,-278-i*5,3,1,3);
+  }
+  addPlatform(0,34,-330,5,1,5);
+  addCheckpoint(0,35,-330,5);
+
+  // Section 7: 高空双墙夹道
+  addPlatform(0,34,-338,4,1,4);
+  addWallRun(-3,38,-355,.5,10,30,'right');
+  addWallRun(3,38,-355,.5,10,30,'left');
+  addPlatform(0,36,-372,5,1,5);
+  addCheckpoint(0,37,-372,6);
+
+  // Section 8: 最终下坡连跳
+  addPlatform(0,34,-380,4,1,4);
+  addPlatform(-5,32,-388,3,1,3);
+  addPlatform(5,30,-396,3,1,3);
+  addPlatform(-5,28,-404,3,1,3);
+  addPlatform(5,26,-412,3,1,3);
+  addPlatform(0,24,-420,3,1,3);
+  addPlatform(0,22,-428,4,1,4);
+  addPlatform(0,20,-436,6,1,6);
+  addCheckpoint(0,21,-436,7);
+
+  // FINISH
+  addPlatform(0,20,-450,16,1,16,matNeon2);
+  addCheckpoint(0,21,-450,8);
+}
+
+scene.add(camera);
+
 // ===== GAME LOOP =====
 const clock=new THREE.Clock();
 
@@ -584,11 +741,7 @@ function animate(){
   if(keys2['KeyD'])mv.add(right);if(keys2['KeyA'])mv.sub(right);
   if(mv.length()>0)mv.normalize().multiplyScalar(moveSpeed*dt);
 
-  if(sprint&&grounded&&dashCooldown<=0&&!dashing){
-    dashing=true;dashTimer=.2;dashCooldown=1;snd('dash');
-    if(mv.length()>0)addCombo('冲刺');
-  }
-  if(dashing){dashTimer-=dt;mv.multiplyScalar(2.5);if(dashTimer<=0)dashing=false;}
+  if(dashCooldown>0)dashCooldown-=dt;
   dashCooldown-=dt;
 
   // Hook
@@ -614,13 +767,17 @@ function animate(){
 
     // Wall running
     if(wallRunning){
-      wallRunTimer-=dt;vy=Math.max(vy-5*dt,0);
-      if(wallRunTimer<=0||grounded){wallRunning=false;}
+      wallRunTimer-=dt;vy=Math.max(vy-8*dt,-2);
+      if(wallRunTimer<=0||grounded){wallRunning=false;vy=-3;}
       // Wall jump
       if(keys2['Space']&&wallRunTimer>0){
-        vy=WALL_JUMP;wallRunning=false;respawnSafe=0;jumpGuard=.15;canDoubleJump=true;jumpCount=0;
-        canDoubleJump=true;
+        vy=WALL_JUMP;wallRunning=false;respawnSafe=0;jumpGuard=.15;jumpCount=0;canDoubleJump=true;
+        // 往前+微微离墙方向跳
+        const fwdDir=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+        pos.addScaledVector(fwdDir,.5);
+        pos.x+=wallRunSide*.3;
         snd('jump');addCombo('墙跳');
+        keys2['Space']=false;
       }
     }else{
       if(jumpGuard>0)jumpGuard-=dt;
@@ -632,9 +789,9 @@ function animate(){
       if(grounded){
         vy=JUMP;grounded=false;respawnSafe=0;jumpGuard=.15;
         jumpCount=1;snd('jump');addCombo('跳跃');
-      }else if(jumpCount<2&&!wallRunning){
-        vy=DOUBLE_JUMP;jumpCount=2;respawnSafe=0;
-        snd('jump');addCombo('二段跳');
+      }else if(!wallRunning){
+        vy=DOUBLE_JUMP;respawnSafe=0;
+        snd('jump');addCombo('飞行');
       }
       keys2['Space']=false;
     }
@@ -666,8 +823,9 @@ function animate(){
   if(!window._camTilt)window._camTilt=0;
   window._camTilt+=(targetTilt-window._camTilt)*.1;
   camera.rotateZ(window._camTilt);
+
   // FOV with speed
-  camera.fov=80+(sprint?10:0)+(dashing?15:0);camera.updateProjectionMatrix();
+  camera.fov=80;camera.updateProjectionMatrix();
 
   // Footsteps
   if(grounded&&(keys2['KeyW']||keys2['KeyS']||keys2['KeyA']||keys2['KeyD'])){
@@ -704,31 +862,28 @@ function animate(){
   // Hook point animation
   hookPoints.forEach(h=>{h.mesh.rotation.y+=dt*3;h.mesh.position.y=h.y+Math.sin(Date.now()*.003)*.3;});
 
-  // Finish check
-  if(!finished&&cpCollected>=checkpoints.length){
-    const fd=Math.sqrt(pos.x**2+(pos.z+372)**2);
-    if(fd<10&&pos.y>6){
+  // Finish check (动态找最后一个检查点位置)
+  if(!finished){
+    const lastCP=checkpoints[checkpoints.length-1];
+    const fd=pos.distanceTo(new THREE.Vector3(lastCP.x,lastCP.y,lastCP.z));
+    if(fd<10){
       finished=true;snd('win');
       showMsg('关卡完成!',2000);
-      // 生成传送门
       if(!window._portal){
         const portalG=new THREE.Group();
-        // 外圈
         const ring1=new THREE.Mesh(new THREE.TorusGeometry(2,.15,12,24),new THREE.MeshBasicMaterial({color:0x44ffaa}));
         portalG.add(ring1);
-        // 内圈旋转
         const ring2=new THREE.Mesh(new THREE.TorusGeometry(1.5,.1,10,20),new THREE.MeshBasicMaterial({color:0x22ddff}));
         portalG.add(ring2);
-        // 中心漩涡
         const vortex=new THREE.Mesh(new THREE.CircleGeometry(1.5,20),new THREE.MeshBasicMaterial({color:0x115533,transparent:true,opacity:.6,side:THREE.DoubleSide}));
         portalG.add(vortex);
-        // 粒子光点
         for(let pi=0;pi<8;pi++){
           const p=new THREE.Mesh(new THREE.SphereGeometry(.08,6,4),new THREE.MeshBasicMaterial({color:0x88ffcc}));
           const a=pi/8*Math.PI*2;p.position.set(Math.cos(a)*1.8,Math.sin(a)*1.8,0);
           portalG.add(p);
         }
-        portalG.position.set(0,11,-372);
+        // 传送门在最后一个检查点上方
+        portalG.position.set(lastCP.x,lastCP.y+3,lastCP.z);
         portalG.rotation.x=Math.PI/2*.3;
         scene.add(portalG);
         window._portal=portalG;
@@ -750,7 +905,7 @@ function animate(){
         showMsg('传送中...',1500);
         window._portalReady=false;
         setTimeout(()=>{
-          if(currentLevel<2){
+          if(currentLevel<3){
             currentLevel++;
             loadLevel(currentLevel);
           }else{
