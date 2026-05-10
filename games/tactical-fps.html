@@ -94,6 +94,14 @@ canvas{display:block}
   <div class="hb"><div class="hl">金币</div><div class="hv hv-cr" id="crV">800</div></div>
 </div>
 <div id="abilities"></div>
+<div id="duelHud" style="position:fixed;top:12px;left:14px;pointer-events:none;z-index:10;display:none;background:rgba(0,0,0,.7);padding:8px 16px;border-radius:6px">
+  <div style="color:#ff6600;font-size:11px;letter-spacing:2px">单挑模式</div>
+  <div style="display:flex;gap:16px;margin-top:4px">
+    <div><span style="color:rgba(255,255,255,.4);font-size:10px">击杀</span><div id="duelK" style="color:#3ddc84;font-size:22px;font-weight:700">0</div></div>
+    <div><span style="color:rgba(255,255,255,.4);font-size:10px">死亡</span><div id="duelD" style="color:#e74c3c;font-size:22px;font-weight:700">0</div></div>
+  </div>
+</div>
+<div id="respawnMsg" style="position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:32px;font-weight:700;letter-spacing:4px;z-index:20;pointer-events:none;display:none;text-shadow:0 0 20px rgba(255,0,0,.5)">你被击杀了<br><span style="font-size:18px;color:#ffd740" id="respawnTimer">3秒后复活</span></div>
 <div id="allyHud" style="position:fixed;top:80px;left:14px;pointer-events:none;z-index:10"></div>
 <div id="dirHits" style="position:fixed;top:50%;left:50%;width:200px;height:200px;transform:translate(-50%,-50%);pointer-events:none;z-index:8"></div>
 <div id="plantBar" style="position:fixed;bottom:140px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:15;display:none;text-align:center">
@@ -133,7 +141,8 @@ canvas{display:block}
       <div id="roomCode" style="color:#ffd740;font-size:24px;letter-spacing:4px;font-weight:700"></div>
       <div style="color:rgba(255,255,255,.4);font-size:11px;margin-top:4px">把房间码发给朋友</div>
       <div id="peerCount" style="color:#3ddc84;font-size:13px;margin-top:6px">等待玩家加入...</div>
-      <button class="pbtn" id="mpStartBtn" style="margin-top:10px;background:#e74c3c;display:none">开始游戏</button>
+      <button class="pbtn" id="mpStartBtn" style="margin-top:10px;background:#e74c3c;display:none">开始(带AI)</button>
+      <button class="pbtn" id="duelStartBtn" style="margin-top:10px;background:#ff6600;display:none">单挑模式</button>
     </div>
     <div id="joinPanel" style="margin-top:10px;display:none">
       <input id="joinInput" type="text" placeholder="输入房间码" style="padding:8px 14px;font-size:16px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:4px;text-align:center;letter-spacing:3px;width:180px">
@@ -1518,11 +1527,11 @@ function shoot(){
       setTimeout(()=>ch.className='',120);
     }
     // 联机：检测是否打中其他玩家
-    if(mpMode&&!best){
+    if(mpMode){
       const hitId=mpCheckHit(aimDir);
       if(hitId){
         const dmg=w.dmg||20;
-        mpBroadcast({type:'hit',target:hitId,dmg:dmg,sfx:w.sfx||'rifle'});
+        mpBroadcast({type:'hit',target:hitId,dmg:dmg,sfx:w.sfx||'rifle',from:mpMyId});
         sfx('hit');
         const ch2=document.getElementById('ch');ch2.className='hit';setTimeout(()=>ch2.className='',120);
       }
@@ -2295,6 +2304,7 @@ document.getElementById('trainBtn').addEventListener('click',()=>{trainingMode=t
 let mpMode=false, mpHost=false, mpPeer=null, mpConns=[], mpPlayers={}, mpMyId='';
 const MP_SYNC_RATE=50; // ms between syncs
 let mpSyncTimer=0;
+let duelMode=false, duelKills=0, duelDeaths=0, duelRespawnT=0;
 
 function genRoomCode(){return Math.random().toString(36).substr(2,5).toUpperCase();}
 
@@ -2342,8 +2352,43 @@ function handleMPData(id,data){
     if(data.target===mpMyId){
       hp-=data.dmg||20;
       document.getElementById('dmg').style.opacity=1;setTimeout(()=>{document.getElementById('dmg').style.opacity=0;},100);
-      if(hp<=0){hp=0;}
+      if(hp<=0&&!playerDead){
+        hp=0;playerDead=true;
+        if(duelMode){
+          duelDeaths++;
+          document.getElementById('duelD').textContent=duelDeaths;
+          // 通知击杀者加分
+          mpBroadcast({type:'killed',killer:data.from,victim:mpMyId});
+          // 显示死亡+复活倒计时
+          document.getElementById('respawnMsg').style.display='block';
+          gunG.visible=false;
+          duelRespawnT=3;
+          let countdown=3;
+          document.getElementById('respawnTimer').textContent=countdown+'秒后复活';
+          const respI=setInterval(()=>{
+            countdown--;
+            if(countdown<=0){
+              clearInterval(respI);
+              duelRespawn();
+            }else{
+              document.getElementById('respawnTimer').textContent=countdown+'秒后复活';
+            }
+          },1000);
+        }
+      }
     }
+  }else if(data.type==='killed'){
+    // 我杀了人
+    if(data.killer===mpMyId){
+      duelKills++;
+      document.getElementById('duelK').textContent=duelKills;
+      sfx('kill');
+      const ch=document.getElementById('ch');ch.className='kill';setTimeout(()=>ch.className='',200);
+    }
+  }else if(data.type==='start'){
+    // 收到主机开始信号
+    if(data.duel){duelMode=true;document.getElementById('duelHud').style.display='block';}
+    initA();trainingMode=true;startTraining();
   }else if(data.type==='join'){
     if(!mpPlayers[id]) createRemotePlayer(id);
   }else if(data.type==='leave'){
@@ -2414,7 +2459,9 @@ function updatePeerCount(){
   const n=mpConns.filter(c=>c.open).length;
   if(el)el.textContent=`已连接: ${n} 名玩家`;
   const btn=document.getElementById('mpStartBtn');
+  const duelBtn=document.getElementById('duelStartBtn');
   if(btn)btn.style.display=n>0?'inline-block':'none';
+  if(duelBtn)duelBtn.style.display=n>0?'inline-block':'none';
 }
 
 // 创建房间(主机)
@@ -2455,11 +2502,7 @@ document.getElementById('joinGoBtn').addEventListener('click',()=>{
     const conn=mpPeer.connect('valo-'+code);
     conn.on('open',()=>{
       setupConn(conn);
-      document.getElementById('joinStatus').textContent='已连接!';
-      // 自动开始游戏
-      setTimeout(()=>{
-        initA();trainingMode=true;startTraining();
-      },500);
+      document.getElementById('joinStatus').textContent='已连接! 等待主机开始...';
     });
     conn.on('error',(err)=>{
       document.getElementById('joinStatus').textContent='连接失败';
@@ -2470,9 +2513,32 @@ document.getElementById('joinGoBtn').addEventListener('click',()=>{
   });
 });
 
-// 主机开始游戏
+// 复活函数
+function duelRespawn(){
+  document.getElementById('respawnMsg').style.display='none';
+  playerDead=false;hp=100;shield=0;
+  // 随机复活点(在当前位置附近随机偏移)
+  const spawnPoints=[{x:10,z:10},{x:-10,z:-10},{x:10,z:-10},{x:-10,z:10},{x:20,z:0},{x:-20,z:0},{x:0,z:20},{x:0,z:-20}];
+  const sp=spawnPoints[Math.floor(Math.random()*spawnPoints.length)];
+  pos.set(sp.x,1.7,sp.z);
+  vy=0;grounded=true;
+  const cl={...GUNS.classic,maxMag:GUNS.classic.mag};
+  weapons=[cl,null,{n:'小刀',cat:'knife'}];slot=0;reloading=false;
+  buildGun();gunG.visible=true;
+  updHUD();
+}
+
+// 主机开始游戏(带AI)
 document.getElementById('mpStartBtn').addEventListener('click',()=>{
-  mpBroadcast({type:'start'});
+  mpBroadcast({type:'start',duel:false});
+  initA();trainingMode=true;startTraining();
+});
+
+// 单挑模式开始
+document.getElementById('duelStartBtn').addEventListener('click',()=>{
+  duelMode=true;duelKills=0;duelDeaths=0;
+  document.getElementById('duelHud').style.display='block';
+  mpBroadcast({type:'start',duel:true});
   initA();trainingMode=true;startTraining();
 });
 
@@ -2498,19 +2564,21 @@ function startTrainRound(){
   if(selAgent)AGENTS[selAgent].ab.forEach((a,i)=>{if(i<3)a.ch=a.mx;});
   buildGun();gunG.visible=true;updAbHUD();
 
-  // 训练假人(不会攻击，不会移动)
-  for(let i=0;i<8;i++){
-    let x,z,valid;
-    for(let tries=0;tries<30;tries++){
-      x=-20+i*5;z=-15-Math.random()*10;
-      valid=true;
-      for(const wl of walls){if(Math.abs(x-wl.x)<wl.hw&&Math.abs(z-wl.z)<wl.hd){valid=false;break;}}
-      if(valid)break;
-    }
-    if(valid){
-      mkEnemy(x,z,'normal');
-      const e=enemies[enemies.length-1];
-      e.speed=0;e.fireT=9999;e.dmg=0;e.state='patrol';e.alertT=0;
+  // 训练假人(不会攻击，不会移动) — 单挑模式不生成
+  if(!duelMode){
+    for(let i=0;i<8;i++){
+      let x,z,valid;
+      for(let tries=0;tries<30;tries++){
+        x=-20+i*5;z=-15-Math.random()*10;
+        valid=true;
+        for(const wl of walls){if(Math.abs(x-wl.x)<wl.hw&&Math.abs(z-wl.z)<wl.hd){valid=false;break;}}
+        if(valid)break;
+      }
+      if(valid){
+        mkEnemy(x,z,'normal');
+        const e=enemies[enemies.length-1];
+        e.speed=0;e.fireT=9999;e.dmg=0;e.state='patrol';e.alertT=0;
+      }
     }
   }
 
