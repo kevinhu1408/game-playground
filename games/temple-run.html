@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>极速逃亡</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-touch-callout:none;user-select:none}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif}
+canvas{display:block;width:100vw;height:100vh}
+#overlay{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92)}
+#overlay h1{font-size:36px;color:#ff6622;letter-spacing:4px;font-weight:900}
+#overlay .sub{color:#aa4411;font-size:12px;letter-spacing:3px;margin-top:4px}
+#overlay p{color:rgba(255,255,255,.4);font-size:11px;margin-top:8px}
+.pbtn{padding:14px 40px;font-size:18px;background:#cc4400;color:#fff;border:none;cursor:pointer;border-radius:8px;margin-top:20px;letter-spacing:3px;font-weight:700}
+#hud{position:fixed;top:0;left:0;right:0;z-index:5;display:none;padding:10px 16px;pointer-events:none}
+#score{color:#fff;font-size:24px;font-weight:900;text-shadow:0 2px 6px #000;letter-spacing:2px}
+#coins{color:#ffdd44;font-size:16px;font-weight:700;margin-top:2px;text-shadow:0 1px 4px #000}
+#multiplier{color:#ff4444;font-size:14px;font-weight:700;margin-top:2px;opacity:0;transition:opacity .2s}
+#deathScreen{position:fixed;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.9)}
+#deathScreen h1{color:#ff4444;font-size:32px}
+#deathScreen .stat{color:#fff;font-size:18px;margin-top:8px}
+#deathScreen .stat span{color:#ffdd44}
+#nearMiss{position:fixed;top:40%;left:50%;transform:translateX(-50%);color:#ff6622;font-size:28px;font-weight:900;opacity:0;z-index:6;pointer-events:none;text-shadow:0 0 15px rgba(255,100,0,.6);transition:opacity .15s}
+/* 电脑端提示 */
+@media(hover:hover)and(pointer:fine){#pcTip{display:block}}
+#pcTip{display:none;position:fixed;bottom:10px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.3);font-size:10px;z-index:6}
+</style>
+</head><body>
+<div id="hud">
+  <div id="score">0</div>
+  <div id="coins">🪙 0</div>
+  <div id="multiplier">x2!</div>
+</div>
+<div id="nearMiss">NEAR MISS!</div>
+<div id="pcTip">← → 方向键 | ↑ 跳跃 | ↓ 滑铲 | 电脑也可以玩</div>
+<div id="overlay">
+  <h1>极速逃亡</h1>
+  <div class="sub">TEMPLE RUN</div>
+  <p>⬅ 左滑换道 | ⬆ 上滑跳跃 | ⬇ 下滑滑铲 | ➡ 右滑换道</p>
+  <p>躲避障碍，收集金币，跑得越远越快!</p>
+  <button class="pbtn" onclick="startGame()">开始逃亡</button>
+</div>
+<div id="deathScreen">
+  <h1>💀 你被抓住了</h1>
+  <div class="stat">距离: <span id="dScore">0</span>m</div>
+  <div class="stat">金币: <span id="dCoins">0</span></div>
+  <div class="stat">最高连击: <span id="dCombo">0</span></div>
+  <button class="pbtn" onclick="location.reload()">再来一次</button>
+</div>
+<canvas id="c"></canvas>
+<script>
+const C=document.getElementById('c');const X=C.getContext('2d');
+const W=()=>innerWidth;const H=()=>innerHeight;
+C.width=W();C.height=H();
+window.addEventListener('resize',()=>{C.width=W();C.height=H();});
+
+// ═══════ STATE ═══════
+let state='menu',score=0,coins=0,combo=0,maxCombo=0;
+let speed=8,lane=1,targetLane=1; // 0=left,1=center,2=right
+let playerY=0,vy=0,jumping=false,sliding=false,slideT=0;
+let dist=0,shakeX=0,shakeY=0,tilt=0;
+const LANE_W=1.2;
+const obstacles=[];const coinList=[];const particles=[];
+let lastObs=0,lastCoin=0;
+
+// ═══════ SWIPE DETECTION ═══════
+let touchStartX=0,touchStartY=0,touchStartT=0,swiped=false;
+document.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;
+  touchStartT=Date.now();swiped=false;
+},{passive:false});
+document.addEventListener('touchmove',e=>{e.preventDefault();},{passive:false});
+document.addEventListener('touchend',e=>{
+  if(swiped)return;
+  const dx=e.changedTouches[0].clientX-touchStartX;
+  const dy=e.changedTouches[0].clientY-touchStartY;
+  const dt=Date.now()-touchStartT;
+  if(dt>300)return; // 太慢不算滑动
+  const adx=Math.abs(dx),ady=Math.abs(dy);
+  if(adx<20&&ady<20)return; // 太短不算
+  swiped=true;
+  if(adx>ady){
+    // 水平滑动
+    if(dx>0)moveRight();else moveLeft();
+  }else{
+    // 垂直滑动
+    if(dy<0)jump();else slide();
+  }
+},{passive:false});
+// 电脑键盘也能玩
+document.addEventListener('keydown',e=>{
+  if(e.code==='ArrowLeft')moveLeft();
+  if(e.code==='ArrowRight')moveRight();
+  if(e.code==='ArrowUp'||e.code==='Space')jump();
+  if(e.code==='ArrowDown')slide();
+});
+
+function moveLeft(){if(state==='playing')targetLane=Math.max(0,targetLane-1);}
+function moveRight(){if(state==='playing')targetLane=Math.min(2,targetLane+1);}
+function jump(){
+  if(state!=='playing'||jumping)return;
+  jumping=true;vy=14;sliding=false;
+}
+function slide(){
+  if(state!=='playing'||jumping)return;
+  sliding=true;slideT=.6;
+}
+
+// ═══════ OBSTACLE GENERATION ═══════
+function genObstacle(){
+  const z=80;
+  const type=Math.random();
+  const obsLane=Math.floor(Math.random()*3);
+  if(type<.35){
+    // 路障(需要左右躲)
+    obstacles.push({type:'barrier',lane:obsLane,z,h:1.5,w:.8});
+  }else if(type<.55){
+    // 低杆(需要滑铲)
+    obstacles.push({type:'low',lane:obsLane,z,h:.6,w:.8});
+  }else if(type<.75){
+    // 高杆(需要跳)
+    obstacles.push({type:'high',lane:-1,z,h:0,w:3}); // 全道
+  }else if(type<.9){
+    // 双路障(只留一条道)
+    const safe=Math.floor(Math.random()*3);
+    for(let i=0;i<3;i++){if(i!==safe)obstacles.push({type:'barrier',lane:i,z,h:1.5,w:.8});}
+  }else{
+    // 火焰柱(超高，只能换道)
+    obstacles.push({type:'fire',lane:obsLane,z,h:3,w:.6});
+  }
+}
+function genCoin(){
+  const z=60+Math.random()*30;
+  const cl=Math.floor(Math.random()*3);
+  for(let i=0;i<3;i++)coinList.push({lane:cl,z:z+i*2,y:1+Math.sin(i)*.3,collected:false});
+}
+
+// ═══════ 3D PROJECTION ═══════
+function project(x,y,z){
+  const fov=H()*.7;
+  const scale=fov/(z+5);
+  return{
+    sx:W()/2+x*scale+shakeX,
+    sy:H()*.55-y*scale-z*scale*.15+shakeY,
+    s:scale
+  };
+}
+
+// ═══════ RENDER ═══════
+function draw(){
+  // Sky gradient
+  const skyGrad=X.createLinearGradient(0,0,0,H()*.4);
+  skyGrad.addColorStop(0,'#1a0a05');skyGrad.addColorStop(1,'#442211');
+  X.fillStyle=skyGrad;X.fillRect(0,0,W(),H()*.4);
+  // Ground
+  const gndGrad=X.createLinearGradient(0,H()*.4,0,H());
+  gndGrad.addColorStop(0,'#3a2a1a');gndGrad.addColorStop(1,'#1a1208');
+  X.fillStyle=gndGrad;X.fillRect(0,H()*.4,W(),H()*.6);
+
+  // Road lines (perspective)
+  for(let z=0;z<80;z+=2){
+    const p1=project(-2,0,z),p2=project(2,0,z);
+    const p3=project(-2,0,z+2),p4=project(2,0,z+2);
+    // Road surface
+    X.fillStyle=z%4<2?'#4a3a2a':'#3a2a1a';
+    X.beginPath();X.moveTo(p1.sx,p1.sy);X.lineTo(p2.sx,p2.sy);X.lineTo(p4.sx,p4.sy);X.lineTo(p3.sx,p3.sy);X.fill();
+    // Lane dividers
+    if(z%4===0){
+      for(let l=-0.4;l<=0.4;l+=0.8){
+        const pl=project(l,0,z);
+        X.fillStyle='rgba(255,255,200,.15)';X.fillRect(pl.sx-1,pl.sy,2,3);
+      }
+    }
+  }
+  // Side walls (temple walls)
+  for(let z=0;z<80;z+=4){
+    const wl=project(-2.5,0,z),wl2=project(-2.5,2.5,z);
+    const wr=project(2.5,0,z),wr2=project(2.5,2.5,z);
+    X.fillStyle='#2a1a0a';
+    X.fillRect(wl.sx-10,wl2.sy,10,wl.sy-wl2.sy);
+    X.fillRect(wr.sx,wr2.sy,10,wr.sy-wr2.sy);
+    // Torches
+    if(z%8===0&&z>4){
+      const tl=project(-2.3,1.8,z);
+      const tr=project(2.3,1.8,z);
+      const flicker=.7+Math.random()*.6;
+      X.fillStyle=`rgba(255,${150+Math.random()*50},20,${flicker*.5})`;
+      X.beginPath();X.arc(tl.sx,tl.sy,4*flicker,0,Math.PI*2);X.fill();
+      X.beginPath();X.arc(tr.sx,tr.sy,4*flicker,0,Math.PI*2);X.fill();
+    }
+  }
+
+  // Coins
+  coinList.forEach(c=>{
+    if(c.collected||c.z<-2)return;
+    const cx=(c.lane-1)*LANE_W;
+    const p=project(cx,c.y+Math.sin(dist*3+c.z)*.2,c.z);
+    if(p.s<0)return;
+    const r=Math.max(4,15*p.s/30);
+    X.fillStyle='#ffdd44';X.beginPath();X.arc(p.sx,p.sy,r,0,Math.PI*2);X.fill();
+    X.fillStyle='#ffaa22';X.beginPath();X.arc(p.sx,p.sy,r*.6,0,Math.PI*2);X.fill();
+  });
+
+  // Obstacles
+  obstacles.forEach(o=>{
+    if(o.z<-2)return;
+    const ox=o.lane>=0?(o.lane-1)*LANE_W:0;
+    const w2=o.w/2;
+    if(o.type==='barrier'){
+      const bl=project(ox-w2,0,o.z),br=project(ox+w2,0,o.z);
+      const tl=project(ox-w2,o.h,o.z);
+      const bw=br.sx-bl.sx,bh=bl.sy-tl.sy;
+      X.fillStyle='#882222';X.fillRect(bl.sx,tl.sy,bw,bh);
+      X.fillStyle='#aa3333';X.fillRect(bl.sx+2,tl.sy+2,bw-4,bh*.3);
+      // Skull
+      X.fillStyle='#ffcc00';X.font=Math.max(8,bw*.4)+'px serif';X.textAlign='center';
+      X.fillText('💀',bl.sx+bw/2,tl.sy+bh*.7);
+    }else if(o.type==='low'){
+      const bl=project(ox-w2,.4,o.z),br=project(ox+w2,.4,o.z);
+      const bw=br.sx-bl.sx;
+      X.fillStyle='#886622';X.fillRect(bl.sx,bl.sy-3,bw,6);
+      X.fillStyle='#aa8833';X.fillRect(bl.sx,bl.sy-2,bw,3);
+    }else if(o.type==='high'){
+      const bl=project(-1.5,0,o.z),br=project(1.5,0,o.z);
+      const bw=br.sx-bl.sx,bh=Math.max(8,20*bl.s/30);
+      X.fillStyle='#664422';X.fillRect(bl.sx,bl.sy-bh,bw,bh);
+      X.fillStyle='#886633';X.fillRect(bl.sx+2,bl.sy-bh+2,bw-4,3);
+    }else if(o.type==='fire'){
+      const p=project(ox,0,o.z);
+      const fh=Math.max(20,80*p.s/30);
+      const flicker=.8+Math.random()*.4;
+      const grad=X.createLinearGradient(p.sx,p.sy,p.sx,p.sy-fh);
+      grad.addColorStop(0,'rgba(255,100,0,.8)');grad.addColorStop(.5,`rgba(255,200,0,${.5*flicker})`);grad.addColorStop(1,'rgba(255,255,100,0)');
+      X.fillStyle=grad;X.fillRect(p.sx-8,p.sy-fh,16,fh);
+    }
+  });
+
+  // Player
+  const px=(lane-1)*LANE_W;
+  const lerpLane=px+(targetLane-1)*LANE_W;
+  const pp=project(lane===targetLane?px:px,playerY,3);
+  const ps=Math.max(20,40);
+  if(sliding){
+    // Sliding pose
+    X.fillStyle='#cc8844';X.fillRect(pp.sx-ps*.4,pp.sy-ps*.2,ps*.8,ps*.2);
+    X.fillStyle='#aa6633';X.beginPath();X.arc(pp.sx,pp.sy-ps*.15,ps*.25,0,Math.PI*2);X.fill();
+  }else{
+    // Running pose
+    const bobY=Math.sin(dist*12)*3;
+    X.fillStyle='#cc8844';
+    // Body
+    X.beginPath();X.arc(pp.sx,pp.sy-ps*.5+bobY,ps*.3,0,Math.PI*2);X.fill();
+    // Head
+    X.fillStyle='#ddaa66';X.beginPath();X.arc(pp.sx,pp.sy-ps*.85+bobY,ps*.2,0,Math.PI*2);X.fill();
+    // Legs
+    const legPhase=dist*15;
+    X.strokeStyle='#aa6633';X.lineWidth=3;
+    X.beginPath();X.moveTo(pp.sx-5,pp.sy-ps*.3+bobY);X.lineTo(pp.sx-8+Math.sin(legPhase)*6,pp.sy+bobY);X.stroke();
+    X.beginPath();X.moveTo(pp.sx+5,pp.sy-ps*.3+bobY);X.lineTo(pp.sx+8-Math.sin(legPhase)*6,pp.sy+bobY);X.stroke();
+  }
+
+  // Speed lines
+  if(speed>15){
+    X.strokeStyle=`rgba(255,255,255,${(speed-15)/30})`;X.lineWidth=1;
+    for(let sl=0;sl<5;sl++){
+      const sy2=H()*.3+Math.random()*H()*.4;
+      X.beginPath();X.moveTo(W()*.2+Math.random()*W()*.6,sy2);X.lineTo(W()*.2+Math.random()*W()*.6+20+speed,sy2);X.stroke();
+    }
+  }
+
+  // Particles
+  particles.forEach(p=>{
+    X.fillStyle=p.color;X.globalAlpha=p.life;
+    X.beginPath();X.arc(p.x,p.y,p.r,0,Math.PI*2);X.fill();
+  });
+  X.globalAlpha=1;
+
+  // Vignette
+  const vig=X.createRadialGradient(W()/2,H()/2,H()*.3,W()/2,H()/2,H()*.8);
+  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,.5)');
+  X.fillStyle=vig;X.fillRect(0,0,W(),H());
+}
+
+// ═══════ COLLISION ═══════
+function checkCollision(){
+  const pLane=Math.round(lane);
+  obstacles.forEach(o=>{
+    if(o.z>2&&o.z<4){
+      const hitLane=o.lane<0||(o.lane===pLane);
+      if(!hitLane)return;
+      if(o.type==='barrier'||o.type==='fire'){
+        if(!jumping||playerY<.5)die();
+        // Near miss
+        else if(o.z>2.5&&o.z<3.5)nearMiss();
+      }else if(o.type==='low'){
+        if(!sliding)die();
+        else nearMiss();
+      }else if(o.type==='high'){
+        if(jumping&&playerY>.8)nearMiss();
+        else if(!jumping)die();
+      }
+    }
+    // Near miss detection (close but didn't hit)
+    if(o.z>3&&o.z<5&&o.lane>=0&&Math.abs(o.lane-pLane)===1){
+      nearMiss();
+    }
+  });
+  // Coins
+  coinList.forEach(c=>{
+    if(c.collected)return;
+    if(c.z>2&&c.z<5&&c.lane===pLane){
+      c.collected=true;coins++;combo++;
+      if(combo>maxCombo)maxCombo=combo;
+      // Particles
+      const pp=project((c.lane-1)*LANE_W,c.y,c.z);
+      for(let i=0;i<5;i++)particles.push({x:pp.sx+Math.random()*20-10,y:pp.sy+Math.random()*20-10,vx:Math.random()*4-2,vy:-Math.random()*4,r:3,life:1,color:'#ffdd44'});
+      if(combo>=5){
+        document.getElementById('multiplier').style.opacity='1';
+        document.getElementById('multiplier').textContent='x'+Math.min(5,Math.floor(combo/5)+1)+'!';
+        setTimeout(()=>document.getElementById('multiplier').style.opacity='0',500);
+      }
+    }
+  });
+}
+
+let nearMissT=0;
+function nearMiss(){
+  if(nearMissT>0)return;nearMissT=.5;
+  score+=50;combo++;
+  document.getElementById('nearMiss').style.opacity='1';
+  setTimeout(()=>document.getElementById('nearMiss').style.opacity='0',300);
+  // Screen shake
+  shakeX=(Math.random()-.5)*8;shakeY=(Math.random()-.5)*5;
+}
+
+function die(){
+  state='dead';
+  document.getElementById('deathScreen').style.display='flex';
+  document.getElementById('dScore').textContent=Math.floor(score);
+  document.getElementById('dCoins').textContent=coins;
+  document.getElementById('dCombo').textContent=maxCombo;
+  // Death shake
+  shakeX=(Math.random()-.5)*20;shakeY=(Math.random()-.5)*15;
+}
+
+// ═══════ START ═══════
+function startGame(){
+  state='playing';score=0;coins=0;combo=0;maxCombo=0;speed=8;
+  lane=1;targetLane=1;playerY=0;vy=0;jumping=false;sliding=false;
+  dist=0;obstacles.length=0;coinList.length=0;
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hud').style.display='block';
+}
+
+// ═══════ LOOP ═══════
+let last=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min((t-last)/1000,.04);last=t;
+
+  if(state==='menu'){
+    X.fillStyle='#1a0a05';X.fillRect(0,0,W(),H());
+    return;
+  }
+  if(state==='dead'){draw();return;}
+
+  // Speed increases over time
+  speed=8+dist*.03;
+  dist+=speed*dt*.1;
+  score+=speed*dt*2*(1+Math.floor(combo/5)*.5);
+
+  // Lane switching (smooth)
+  lane+=(targetLane-lane)*dt*12;
+
+  // Jump physics
+  if(jumping){vy-=35*dt;playerY+=vy*dt;if(playerY<=0){playerY=0;jumping=false;vy=0;}}
+  // Slide timer
+  if(sliding){slideT-=dt;if(slideT<=0)sliding=false;}
+
+  // Generate obstacles
+  lastObs+=speed*dt*.1;
+  if(lastObs>3+Math.random()*2){lastObs=0;genObstacle();}
+  lastCoin+=speed*dt*.1;
+  if(lastCoin>2+Math.random()*3){lastCoin=0;genCoin();}
+
+  // Move obstacles
+  const moveZ=speed*dt;
+  obstacles.forEach(o=>o.z-=moveZ);
+  coinList.forEach(c=>c.z-=moveZ);
+  // Clean up
+  for(let i=obstacles.length-1;i>=0;i--)if(obstacles[i].z<-5)obstacles.splice(i,1);
+  for(let i=coinList.length-1;i>=0;i--)if(coinList[i].z<-5)coinList.splice(i,1);
+
+  // Collision
+  checkCollision();
+  // Near miss timer
+  if(nearMissT>0)nearMissT-=dt;
+
+  // Shake decay
+  shakeX*=.85;shakeY*=.85;
+
+  // Particles
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=dt*3;});
+  for(let i=particles.length-1;i>=0;i--)if(particles[i].life<=0)particles.splice(i,1);
+
+  // Reset combo on miss
+  // (combo resets when hitting nothing for a while — not implemented for simplicity)
+
+  // Draw
+  draw();
+
+  // HUD
+  document.getElementById('score').textContent=Math.floor(score)+'m';
+  document.getElementById('coins').textContent='🪙 '+coins;
+}
+requestAnimationFrame(loop);
+</script>
+</body></html>

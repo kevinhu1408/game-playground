@@ -46,6 +46,12 @@ canvas{display:block}
 #endScreen .sv{font-size:32px;color:#fff;font-weight:700}
 #endScreen .sl{font-size:11px;color:#888;margin-top:2px;letter-spacing:1px}
 #endScreen button{margin-top:20px;padding:10px 36px;font-size:16px;background:#00aaff;color:#000;border:none;cursor:pointer;border-radius:4px;font-weight:700;letter-spacing:2px}
+/* 手机虚拟按键(只在触屏设备显示) */
+#mobileControls{display:none;position:fixed;z-index:100;pointer-events:none}
+@media(hover:none)and(pointer:coarse){#mobileControls{display:block}}
+.m-btn{position:fixed;width:56px;height:56px;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(255,255,255,.6);pointer-events:auto;user-select:none;-webkit-user-select:none;touch-action:none}
+.m-btn:active{background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.5)}
+.m-btn.sq{border-radius:10px;width:60px;height:44px;font-size:13px}
 </style>
 </head>
 <body><a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;letter-spacing:1px;border:1px solid rgba(255,255,255,.15);cursor:pointer;font-family:sans-serif">← 返回主页</a>
@@ -72,6 +78,18 @@ canvas{display:block}
 <div id="msg"></div>
 <div id="deathFade"></div>
 
+<div id="mobileControls">
+  <!-- 左侧：方向键 -->
+  <div class="m-btn" id="mb-w" style="bottom:120px;left:60px">W</div>
+  <div class="m-btn" id="mb-a" style="bottom:65px;left:10px">A</div>
+  <div class="m-btn" id="mb-s" style="bottom:65px;left:60px">S</div>
+  <div class="m-btn" id="mb-d" style="bottom:65px;left:110px">D</div>
+  <!-- 右侧：动作键 -->
+  <div class="m-btn" id="mb-jump" style="bottom:120px;right:20px">⬆</div>
+  <div class="m-btn sq" id="mb-slide" style="bottom:65px;right:80px">滑铲</div>
+  <div class="m-btn sq" id="mb-hook" style="bottom:65px;right:10px">钩爪</div>
+  <!-- 视角控制区域(右上半屏幕触摸移动) -->
+</div>
 <div id="overlay">
   <h1>极限跑酷</h1>
   <div class="sub">PARKOUR MASTER</div>
@@ -711,6 +729,45 @@ function buildLevel3(){
 }
 
 scene.add(camera);
+
+// ===== MOBILE CONTROLS =====
+if('ontouchstart' in window){
+  // 按钮映射
+  const btnMap={
+    'mb-w':'KeyW','mb-a':'KeyA','mb-s':'KeyS','mb-d':'KeyD',
+    'mb-jump':'Space','mb-slide':'KeyC','mb-hook':'KeyE'
+  };
+  Object.keys(btnMap).forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.addEventListener('touchstart',e=>{e.preventDefault();keys2[btnMap[id]]=true;},{passive:false});
+    el.addEventListener('touchend',e=>{e.preventDefault();keys2[btnMap[id]]=false;},{passive:false});
+    el.addEventListener('touchcancel',e=>{keys2[btnMap[id]]=false;});
+  });
+  // 右半屏触摸控制视角
+  let touchId=null,lastTX=0,lastTY=0;
+  document.addEventListener('touchstart',e=>{
+    for(const t of e.changedTouches){
+      if(t.clientX>window.innerWidth/2&&touchId===null){
+        touchId=t.identifier;lastTX=t.clientX;lastTY=t.clientY;
+      }
+    }
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    for(const t of e.changedTouches){
+      if(t.identifier===touchId){
+        const dx=t.clientX-lastTX,dy=t.clientY-lastTY;
+        yaw-=dx*.003;pitch-=dy*.003;
+        pitch=Math.max(-1.2,Math.min(1.2,pitch));
+        lastTX=t.clientX;lastTY=t.clientY;
+      }
+    }
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    for(const t of e.changedTouches){if(t.identifier===touchId)touchId=null;}
+  },{passive:true});
+  // 手机不需要pointer lock
+  pointerLocked=true;
+}
 
 // ===== GAME LOOP =====
 const clock=new THREE.Clock();

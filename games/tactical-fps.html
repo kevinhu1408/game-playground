@@ -82,7 +82,7 @@ canvas{display:block}
 .pbtn:hover{transform:scale(1.04)}
 </style>
 </head>
-<body><a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;letter-spacing:1px;border:1px solid rgba(255,255,255,.15);cursor:pointer;font-family:sans-serif">← 返回主页</a>
+<body>
 <div id="ch"><div class="cx cx-t"></div><div class="cx cx-b"></div><div class="cx cx-l"></div><div class="cx cx-r"></div><div class="cx-d"></div></div>
 <div id="dmg"></div><div id="msg"></div><div id="kf"></div>
 <div id="vignette" style="position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:7;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.35) 100%)"></div>
@@ -128,6 +128,7 @@ canvas{display:block}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 // ═══════ AUDIO ═══════
 let AC=null;
@@ -156,33 +157,36 @@ else if(t==='reload'){const o=AC.createOscillator(),g=AC.createGain();o.type='sq
 
 // ═══════ THREE.JS (高画质) ═══════
 const scene=new THREE.Scene();
-// 晴天天空
-scene.background=new THREE.Color(0x5599dd);
-scene.fog=new THREE.FogExp2(0x88bbee,.002); // 淡蓝雾
+// 阴天清晨(要下雨的感觉)
+scene.background=new THREE.Color(0x606a72);
+scene.fog=new THREE.FogExp2(0x606a72,.005); // 浓雾
 
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,400);
 const ren=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
-ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,2));
+ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,1));
 ren.shadowMap.enabled=true;ren.shadowMap.type=THREE.PCFSoftShadowMap;
 ren.toneMapping=THREE.ACESFilmicToneMapping;  // 电影级色调映射
-ren.toneMappingExposure=1.0;
+ren.toneMappingExposure=.85;
 ren.outputEncoding=THREE.sRGBEncoding;         // 正确的颜色空间
-// 性能优化: 关闭物理光照
+ren.physicallyCorrectLights=true;
 document.body.appendChild(ren.domElement);
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
 
-scene.add(new THREE.AmbientLight(0x8899bb,.5));
-const sun=new THREE.DirectionalLight(0xfffaea,1.3);sun.position.set(50,80,30);sun.castShadow=true;
+scene.add(new THREE.AmbientLight(0x667788,.4));
+scene.add(new THREE.HemisphereLight(0x778899,0x3a4433,.35));
+const sun=new THREE.DirectionalLight(0xccccbb,.6);sun.position.set(30,40,20);sun.castShadow=true;
 sun.shadow.mapSize.set(1024,1024);
 const sc=sun.shadow.camera;sc.left=sc.bottom=-120;sc.right=sc.top=120;sc.far=250;
 scene.add(sun);
+const fillLight=new THREE.DirectionalLight(0x8899bb,.3);fillLight.position.set(-30,20,-20);scene.add(fillLight);
 
-// 简化太阳(低面数)
-const sunGlow=new THREE.Mesh(new THREE.SphereGeometry(8,12,10),new THREE.MeshBasicMaterial({color:0xffffcc,transparent:true,opacity:.6}));
-sunGlow.position.set(50,80,30);scene.add(sunGlow);
-// 太阳光晕
-const sunHalo=new THREE.Mesh(new THREE.SphereGeometry(15,10,8),new THREE.MeshBasicMaterial({color:0xffeedd,transparent:true,opacity:.15}));
-sunHalo.position.set(50,80,30);scene.add(sunHalo);
+// 阴天云层(代替太阳)
+const cloud1=new THREE.Mesh(new THREE.SphereGeometry(30,8,6),new THREE.MeshBasicMaterial({color:0x778888,transparent:true,opacity:.3}));
+cloud1.position.set(40,60,20);cloud1.scale.set(2,.4,1.5);scene.add(cloud1);
+const cloud2=new THREE.Mesh(new THREE.SphereGeometry(25,8,6),new THREE.MeshBasicMaterial({color:0x6a7a7a,transparent:true,opacity:.25}));
+cloud2.position.set(-30,55,-10);cloud2.scale.set(2.5,.3,1.8);scene.add(cloud2);
+const cloud3=new THREE.Mesh(new THREE.SphereGeometry(20,8,6),new THREE.MeshBasicMaterial({color:0x707a80,transparent:true,opacity:.3}));
+cloud3.position.set(10,65,-40);cloud3.scale.set(2,.35,1.5);scene.add(cloud3);
 
 // ═══════ PROCEDURAL TEXTURES ═══════
 function mkTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');draw(x,w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;}
@@ -295,7 +299,16 @@ const texGround=mkTex(256,256,(ctx,w,h)=>{
   // 草丛小点
   for(let i=0;i<60;i++){ctx.fillStyle=`rgba(${50+Math.random()*30},${80+Math.random()*40},${30+Math.random()*20},${.05+Math.random()*.06})`;
     ctx.fillRect(Math.random()*w,Math.random()*h,2+Math.random()*4,1+Math.random()*2);}
-});texGround.repeat.set(10,10);
+  // 混凝土裂缝
+  ctx.strokeStyle='rgba(40,30,20,.12)';ctx.lineWidth=.8;ctx.lineCap='round';
+  for(let i=0;i<8;i++){ctx.beginPath();let cx=Math.random()*w,cy=Math.random()*h;ctx.moveTo(cx,cy);
+    for(let j=0;j<4+Math.random()*5;j++){cx+=(-15+Math.random()*30);cy+=(-15+Math.random()*30);ctx.lineTo(cx,cy);}ctx.stroke();
+    // 裂缝阴影
+    ctx.strokeStyle=`rgba(60,45,30,${.04+Math.random()*.04})`;ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='rgba(40,30,20,.12)';ctx.lineWidth=.8;}
+  // 微裂纹网络
+  ctx.strokeStyle='rgba(50,40,25,.06)';ctx.lineWidth=.4;
+  for(let i=0;i<15;i++){ctx.beginPath();const sx=Math.random()*w,sy=Math.random()*h;ctx.moveTo(sx,sy);ctx.lineTo(sx+(-10+Math.random()*20),sy+(-10+Math.random()*20));ctx.stroke();}
+});texGround.repeat.set(14,14);
 
 // 金属纹理 (128x128)
 const texMetal=mkTex(128,128,(ctx,w,h)=>{
@@ -355,133 +368,76 @@ const mStucco=new THREE.MeshStandardMaterial({color:0xe8c890,roughness:.7});
 const mTerra=new THREE.MeshStandardMaterial({color:0xcc6633,roughness:.8});
 const mWindow=new THREE.MeshStandardMaterial({color:0x99bbdd,roughness:.15,metalness:.15});
 
-const gnd=new THREE.Mesh(new THREE.PlaneGeometry(MW*3,MD*3),mGnd);gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;scene.add(gnd);
+// 旧地面已移除，使用GLB地图自带地面
 
 const walls=[];
 function bx(w,h,d,mat,x,y,z){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat||mWall);const py=y||h/2;m.position.set(x,py,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
   if(w>.4&&d>.4&&(py-h/2)<2)walls.push({x,z,hw:w/2+.4,hd:d/2+.4,hh:py+h/2});
   return m;}
-function pushWalls(p){for(const c of walls){const dx=p.x-c.x,dz=p.z-c.z;if(Math.abs(dx)<c.hw&&Math.abs(dz)<c.hd){const ox=c.hw-Math.abs(dx),oz=c.hd-Math.abs(dz);if(ox<oz)p.x+=Math.sign(dx)*(ox+.01);else p.z+=Math.sign(dz)*(oz+.01);}}}
-
-// ═══ 新地图：晴空要塞 ═══
-// 外墙
-bx(MW*2,12,1,mBrick,0,6,-MD);bx(MW*2,12,1,mBrick,0,6,MD);bx(1,12,MD*2,mBrick,-MW,6,0);bx(1,12,MD*2,mBrick,MW,6,0);
-
-// ── 坡道函数 ──
-function ramp(w,len,angle,mat,x,y,z,rotY){
-  const g=new THREE.BoxGeometry(w,.3,len);
-  const m=new THREE.Mesh(g,mat||mStone);
-  m.position.set(x,y,z);m.rotation.x=angle;if(rotY)m.rotation.y=rotY;
-  m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;
+const _rayCol=new THREE.Raycaster();
+const _rayDirs=[new THREE.Vector3(1,0,0),new THREE.Vector3(-1,0,0),new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,-1)];
+const PUSH_DIST=0.6;
+let _rayFrame=0;
+function pushWalls(p){
+  for(const c of walls){const dx=p.x-c.x,dz=p.z-c.z;if(Math.abs(dx)<c.hw&&Math.abs(dz)<c.hd){const ox=c.hw-Math.abs(dx),oz=c.hd-Math.abs(dz);if(ox<oz)p.x+=Math.sign(dx)*(ox+.01);else p.z+=Math.sign(dz)*(oz+.01);}}
+  if(!window._mapMeshes||window._mapMeshes.length===0)return;
+  // 每帧只检测2个方向，轮流
+  _rayFrame++;
+  const startIdx=(_rayFrame%2)*2;
+  const origin=new THREE.Vector3(p.x,p.y-.5,p.z);
+  for(let i=startIdx;i<startIdx+2;i++){
+    const dir=_rayDirs[i];
+    _rayCol.set(origin,dir);
+    _rayCol.far=PUSH_DIST;
+    const hits=_rayCol.intersectObjects(window._mapMeshes,false);
+    if(hits.length>0){
+      const pushBack=PUSH_DIST-hits[0].distance;
+      p.x-=dir.x*pushBack;
+      p.z-=dir.z*pushBack;
+    }
+  }
 }
 
-// ══════ 工业区地图：铁锈工厂 ══════
-// A包点标记
-const sgA=new THREE.Mesh(new THREE.PlaneGeometry(16,16),mSiteA);sgA.rotation.x=-Math.PI/2;sgA.position.set(-40,.02,-65);sgA.receiveShadow=true;scene.add(sgA);
-bx(.4,5,.4,new THREE.MeshBasicMaterial({color:0xff4444}),-40,2.5,-65);
-// B包点标记
-const sgB=new THREE.Mesh(new THREE.PlaneGeometry(16,16),mSiteB);sgB.rotation.x=-Math.PI/2;sgB.position.set(40,.02,-65);sgB.receiveShadow=true;scene.add(sgB);
-bx(.4,5,.4,new THREE.MeshBasicMaterial({color:0x4466ff}),40,2.5,-65);
-
-// ═══ 工业区布局 ═══
-const mRust=new THREE.MeshStandardMaterial({color:0x8a5533,roughness:.9,metalness:.2});
-const mConcrete=new THREE.MeshStandardMaterial({color:0x888888,roughness:.85});
-const mPipe=new THREE.MeshStandardMaterial({color:0x556666,roughness:.4,metalness:.5});
-const mYellow=new THREE.MeshStandardMaterial({color:0xddaa22,roughness:.6});
-const mDanger=new THREE.MeshStandardMaterial({color:0xcc2222,roughness:.6});
-const factoryFloor=new THREE.Mesh(new THREE.PlaneGeometry(MW*2.5,MD*2.5),mConcrete);
-factoryFloor.rotation.x=-Math.PI/2;factoryFloor.position.y=-.01;factoryFloor.receiveShadow=true;scene.add(factoryFloor);
-
-// ═══ A SITE — 熔炉车间 ═══
-bx(1,10,24,mDark,-55,5,-65);bx(26,10,1,mDark,-42,5,-77);
-bx(1,10,10,mDark,-30,5,-72);bx(1,10,8,mDark,-30,5,-58);
-bx(26,.5,16,mMetal,-42,10,-69);
-const furnace=new THREE.Mesh(new THREE.CylinderGeometry(2.5,3,6,12),mRust);furnace.position.set(-48,3,-68);furnace.castShadow=true;scene.add(furnace);
-const furnaceTop=new THREE.Mesh(new THREE.CylinderGeometry(1.5,2.5,2,12),mDark);furnaceTop.position.set(-48,7,-68);scene.add(furnaceTop);
-const chimney=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,12,8),mRust);chimney.position.set(-48,14,-68);scene.add(chimney);
-bx(3,2.5,3,mCrate,-38,1.25,-64);bx(2,2,2,mCrate,-38,3.25,-64);
-bx(4,3,1.5,mRust,-45,1.5,-60);bx(2,1.5,5,mMetal,-34,0.75,-70);
-bx(10,.8,6,mConcrete,-50,3,-60);ramp(4,8,-.35,mConcrete,-50,1.5,-55,0);
-bx(.3,2.5,6,mYellow,-45,4.25,-60);
-
-// ═══ A通道(L形拐角) ═══
-bx(1,7,30,mBrick,-28,3.5,-35);bx(1,7,20,mDark,-55,3.5,-30);
-bx(14,7,1,mBrick,-42,3.5,-20);bx(1,7,12,mBrick,-48,3.5,-26);
-bx(3,2,2,mCrate,-45,1,-24);bx(2,3,1,mMetal,-35,1.5,-30);
-const pipe1=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,20,8),mPipe);pipe1.position.set(-54,2,-35);pipe1.rotation.x=Math.PI/2;scene.add(pipe1);
-
-// ═══ B SITE — 集装箱码头 ═══
-bx(4,5,8,mDanger,55,2.5,-68);bx(4,5,8,new THREE.MeshStandardMaterial({color:0x2255aa,roughness:.7}),55,7.5,-68);
-bx(4,5,12,new THREE.MeshStandardMaterial({color:0x338833,roughness:.7}),30,2.5,-71);
-bx(22,8,1,mDark,40,4,-77);
-bx(.5,12,.5,mYellow,45,6,-60);bx(.5,12,.5,mYellow,52,6,-60);bx(8,.5,.5,mYellow,48.5,12,-60);bx(1,.3,1,mMetal,48,11,-60);
-bx(6,2.5,3,new THREE.MeshStandardMaterial({color:0xcc6622,roughness:.7}),38,1.25,-62);
-bx(6,2.5,3,new THREE.MeshStandardMaterial({color:0x226688,roughness:.7}),46,1.25,-72);
-bx(3,2.5,6,mDanger,35,1.25,-70);
-bx(6,5,4,new THREE.MeshStandardMaterial({color:0x445566,roughness:.7}),50,2.5,-72);
-ramp(3,6,-.4,mMetal,50,1.5,-67,0);
-
-// ═══ B通道(L形拐角) ═══
-bx(1,7,30,mBrick,28,3.5,-35);bx(1,7,20,mDark,55,3.5,-30);
-bx(14,7,1,mBrick,42,3.5,-20);bx(1,7,12,mBrick,48,3.5,-26);
-bx(3,2,2,mCrate,45,1,-24);bx(2,3,1,mMetal,35,1.5,-30);
-
-// ═══ 中路(蛇形通道) ═══
-const midFloor=new THREE.Mesh(new THREE.PlaneGeometry(20,40),new THREE.MeshStandardMaterial({color:0x777777,roughness:.9}));midFloor.rotation.x=-Math.PI/2;midFloor.position.set(0,.01,-40);midFloor.receiveShadow=true;scene.add(midFloor);
-bx(1,7,16,mBrick,-10,3.5,-30);bx(1,7,16,mBrick,10,3.5,-30);
-bx(8,6,1,mRust,-5,3,-26);bx(8,6,1,mRust,5,3,-34);bx(8,6,1,mRust,-5,3,-42);
-bx(2,2,2,mCrate,0,1,-30);bx(3,2.5,1,mMetal,-7,1.25,-38);bx(3,2.5,1,mMetal,7,1.25,-46);bx(2,1.5,2,mCrate,0,0.75,-50);
-bx(1,7,6,mBrick,-10,3.5,-52);bx(1,7,6,mBrick,10,3.5,-52);
-bx(6,8,6,mDark,-10,4,-56);bx(6,1,6,mMetal,-10,8.5,-56);bx(2,2,.3,mWindow,-10,5,-53);bx(2.5,3.5,1,mDark,-10,1.75,-53);
-bx(6,8,6,mDark,10,4,-56);bx(6,1,6,mMetal,10,8.5,-56);bx(2,2,.3,mWindow,10,5,-53);bx(2.5,3.5,1,mDark,10,1.75,-53);
-
-// ═══ 地下通道(A侧绕后) ═══
-ramp(4,8,.35,mConcrete,-22,-.5,-10,0);
-bx(1,5,20,mDark,-26,-.5,-20);bx(1,5,20,mDark,-18,-.5,-20);bx(9,.5,20,mDark,-22,-3,-20);bx(9,.5,20,mDark,-22,2,-20);
-for(let tl=0;tl<4;tl++){const tL2=new THREE.Mesh(new THREE.BoxGeometry(.3,.08,.3),new THREE.MeshBasicMaterial({color:0xffcc44}));tL2.position.set(-22,1.7,-8-tl*6);scene.add(tL2);}
-ramp(4,8,-.35,mConcrete,-22,-.5,-30,0);bx(2,2,2,mCrate,-22,-1.5,-18);
-
-// ═══ 仓库(B侧绕后) ═══
-bx(14,8,10,mDark,50,4,-42);bx(1,7,10,mDark,43,3.5,-42);bx(1,7,10,mDark,57,3.5,-42);
-bx(14,7,1,mDark,50,3.5,-47);bx(3,7,1,mDark,44,3.5,-37);bx(3,7,1,mDark,56,3.5,-37);
-bx(14,.5,10,mMetal,50,8,-42);
-bx(3,2,3,mCrate,46,1,-44);bx(2,2,2,mCrate,54,1,-44);
-bx(1.5,1,3,mYellow,52,.5,-42);bx(.3,2,.3,mYellow,52,1.5,-40.5);bx(1.5,.1,1,mYellow,52,2.5,-40);
-ramp(3,6,-.35,mMetal,57,2,-38,Math.PI/2);bx(14,.5,4,mMetal,50,4,-34);bx(.3,2,4,mYellow,43,5,-34);
-
-// ═══ 出生区 ═══
-bx(8,7,8,mBrick,-12,3.5,10);bx(8,1,8,mRoof,-12,7.5,10);
-bx(8,7,8,mBrick,12,3.5,10);bx(8,1,8,mRoof,12,7.5,10);
-bx(4,2,3,mCrate,-6,1,20);bx(4,2,3,mCrate,6,1,20);bx(3,2,2,mCrate,0,1,30);
-bx(6,3,1,mBrick,-8,1.5,40);bx(6,3,1,mBrick,8,1.5,40);
-
-// ═══ 防守后方 ═══
-bx(60,8,1,mDark,0,4,-82);bx(1,7,6,mDark,-20,3.5,-79);bx(1,7,6,mDark,20,3.5,-79);
-
-// ═══ 工业装饰 ═══
-for(const[px,py,pz] of [[-54,4,-50],[-54,4,-20],[54,4,-50],[54,4,-20]]){
-  const bp=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,20,10),mPipe);bp.position.set(px,py,pz);bp.rotation.x=Math.PI/2;scene.add(bp);
-}
-for(const[px,pz] of [[-54,-35],[-54,-55],[54,-35],[54,-55]]){
-  const vp=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,8,8),mPipe);vp.position.set(px,4,pz);scene.add(vp);
-}
-for(const[bpx,bpz] of [[-42,-40],[42,-40],[-8,-20],[8,-20],[0,15],[-35,-55],[35,-55]]){
-  const ob=new THREE.Mesh(new THREE.CylinderGeometry(.5,.55,1.3,8),mRust);ob.position.set(bpx,.65,bpz);ob.castShadow=true;scene.add(ob);
-}
-for(const[lx,lz] of [[-40,-65],[40,-65],[0,-40],[-22,-10],[22,-10],[0,5]]){
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,5,6),mMetal);pole.position.set(lx,2.5,lz);scene.add(pole);
-  const lamp=new THREE.Mesh(new THREE.CylinderGeometry(.4,.2,.15,8),mYellow);lamp.position.set(lx,5.2,lz);scene.add(lamp);
-  const glow=new THREE.PointLight(0xffdd88,.5,15);glow.position.set(lx,5,lz);scene.add(glow);
-}
-for(const[fx,fz] of [[-55,-45],[55,-45]]){bx(1,4,12,new THREE.MeshStandardMaterial({color:0x888888,roughness:.5,wireframe:true}),fx,2,fz);}
-const skyM2=new THREE.MeshStandardMaterial({color:0x4a4a55,roughness:.9});
-bx(8,30,4,skyM2,-75,15,-95);bx(4,40,4,skyM2,-60,20,-98);bx(12,25,4,skyM2,-40,12.5,-96);
-bx(6,35,4,skyM2,-20,17.5,-99);bx(10,28,4,skyM2,10,14,-97);bx(8,32,4,skyM2,35,16,-99);
-bx(6,22,4,skyM2,55,11,-95);bx(10,38,4,skyM2,75,19,-100);
-for(const cx of [-60,-20,35,75]){const ch2=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.2,20,8),skyM2);ch2.position.set(cx,25,-98);scene.add(ch2);}
-const aGl=new THREE.Mesh(new THREE.PlaneGeometry(18,18),new THREE.MeshBasicMaterial({color:0xff4444,transparent:true,opacity:.06}));aGl.rotation.x=-Math.PI/2;aGl.position.set(-40,.025,-65);scene.add(aGl);
-const bGl=new THREE.Mesh(new THREE.PlaneGeometry(18,18),new THREE.MeshBasicMaterial({color:0x4466ff,transparent:true,opacity:.06}));bGl.rotation.x=-Math.PI/2;bGl.position.set(40,.025,-65);scene.add(bGl);
+// ═══ GLB地图加载 ═══
 const bonusZones=[];bonusZones.push({x:0,z:-40,r:2});bonusZones.push({x:-22,z:-20,r:1.5});bonusZones.push({x:50,z:-42,r:2});
+{
+  const mapLoader=new THREE.GLTFLoader();
+  mapLoader.load('fps-map.glb',(gltf)=>{
+    const mapModel=gltf.scene;
+    mapModel.scale.set(2.5,2.5,2.5);
+    mapModel.position.set(0,0,0);
+    mapModel.traverse(c=>{
+      if(c.isMesh){
+        c.castShadow=false;
+        c.receiveShadow=false;
+      }
+    });
+    // 先加到场景让scale生效，再算碰撞
+    scene.add(mapModel);
+    mapModel.updateMatrixWorld(true);
+    // 地图碰撞 — 延迟加载，等玩家进入地图后再开启
+    // 收集所有地图mesh用于射线碰撞
+    window._mapMeshes=[];
+    mapModel.traverse(c=>{
+      if(c.isMesh) window._mapMeshes.push(c);
+    });
+    console.log('地图mesh数量:',window._mapMeshes.length);
+    console.log('地图加载成功, 碰撞墙数量:',walls.length);
+    const mapBox=new THREE.Box3().setFromObject(mapModel);
+    const mapSize=new THREE.Vector3();mapBox.getSize(mapSize);
+    const mapCenter=new THREE.Vector3();mapBox.getCenter(mapCenter);
+    console.log('地图大小:',mapSize.x.toFixed(1),mapSize.y.toFixed(1),mapSize.z.toFixed(1));
+    console.log('地图中心:',mapCenter.x.toFixed(1),mapCenter.y.toFixed(1),mapCenter.z.toFixed(1));
+    console.log('地图范围 X:',mapBox.min.x.toFixed(1),'~',mapBox.max.x.toFixed(1));
+    console.log('地图范围 Y:',mapBox.min.y.toFixed(1),'~',mapBox.max.y.toFixed(1));
+    console.log('地图范围 Z:',mapBox.min.z.toFixed(1),'~',mapBox.max.z.toFixed(1));
+    // 自动把出生点设到地图中心偏内
+    pos.set(mapCenter.x, mapBox.min.y+1.7, mapCenter.z*0.5);
+  },undefined,(err)=>{console.error('地图加载失败:',err);});
+}
+
+// 包点标记(暂时关闭，用GLB地图)
+
 
 // ═══════ AGENTS ═══════
 const AGENTS={
@@ -608,205 +564,97 @@ function buildGun(){
       // 柄尾
       const pom=new THREE.Mesh(new THREE.BoxGeometry(.018,.008,.02),mt2);pom.position.set(0,-.04,0);knifeG.add(pom);
 
-      // 手(反握竖刀) — 放在gunG里，手不跟刀翻转
-      const hand=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.05),glv2);hand.position.set(0,-.04,0);gunG.add(hand);
-      // 四指弯曲握住刀柄
-      for(let i=0;i<4;i++){const f=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.03,5),glv2);
-        f.position.set(-.013+i*.009,-.035,.02);f.rotation.x=-.6;gunG.add(f);}
-      // 大拇指
-      const thumb=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.03,5),glv2);
-      thumb.position.set(.022,-.03,-.01);thumb.rotation.z=.2;thumb.rotation.x=.2;gunG.add(thumb);
-      // 手腕
-      const wr=new THREE.Mesh(new THREE.BoxGeometry(.035,.03,.03),sk2);wr.position.set(0,-.05,.03);gunG.add(wr);
-      // 袖口
-      const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.024,.027,.04,8),B(0x333333,30));
-      cuff.position.set(0,-.05,.06);cuff.rotation.x=Math.PI/2;gunG.add(cuff);
-
       gunG.userData.bfHandleR=null;gunG.userData.bfHandleL=null;
       gunG.position.set(.1,-.08,-.05);
     }
     return;
   }
-  const B=(c,s)=>new THREE.MeshPhongMaterial({color:c,shininess:s||60});
-  const bk=B(0x1a1a1a,80),dk=B(0x2a2a2a,70),gy=B(0x555555,75),mt=B(0x666666,90);
-  const ac=B(selAgent?AGENTS[selAgent].color:0x888888);
-  const wd=B(0x3a2a1a,25),rubber=B(0x111111,15);
-  const sk=B(0xc4a882,25),glv=B(0x1a1a1a,30),sleeve=B(0x333333,30);
-  const cyl=(r1,r2,h,mat,seg)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg||10),mat);m.rotation.x=Math.PI/2;return m;};
+  // 金属拉丝纹理
+  const gunTexC=document.createElement('canvas');gunTexC.width=64;gunTexC.height=64;
+  const gtx=gunTexC.getContext('2d');
+  gtx.fillStyle='#2a2a2a';gtx.fillRect(0,0,64,64);
+  for(let y=0;y<64;y++){gtx.fillStyle=`rgba(${150+Math.random()*30},${150+Math.random()*30},${155+Math.random()*30},${.03+Math.random()*.02})`;gtx.fillRect(0,y,64,1);}
+  const gunTex=new THREE.CanvasTexture(gunTexC);gunTex.wrapS=gunTex.wrapT=THREE.RepeatWrapping;
+  const B=(c,s)=>new THREE.MeshStandardMaterial({color:c,roughness:s||.5,metalness:.3});
+  const bk=new THREE.MeshStandardMaterial({map:gunTex,color:0x1a1a1a,roughness:.4,metalness:.6});
+  const dk=new THREE.MeshStandardMaterial({map:gunTex,color:0x2a2a2a,roughness:.35,metalness:.55});
+  const gy=new THREE.MeshStandardMaterial({color:0x555555,roughness:.3,metalness:.5});
+  const mt=new THREE.MeshStandardMaterial({color:0x777777,roughness:.2,metalness:.7});
+  const ac=new THREE.MeshStandardMaterial({color:selAgent?AGENTS[selAgent].color:0x888888,roughness:.4,metalness:.3});
+  const wd=new THREE.MeshStandardMaterial({color:0x3a2a1a,roughness:.8});
+  const rubber=new THREE.MeshStandardMaterial({color:0x111111,roughness:.9});
+  const sk=new THREE.MeshStandardMaterial({color:0xc4a882,roughness:.5});
+  const glv=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.7});
+  const sleeve=new THREE.MeshStandardMaterial({color:0x333333,roughness:.6});
+  const cyl=(r1,r2,h,mat,seg)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg||14),mat);m.rotation.x=Math.PI/2;return m;};
   const ad=(mesh,x,y,z,rx,ry,rz)=>{mesh.position.set(x,y,z);if(rx)mesh.rotation.x=rx;if(ry)mesh.rotation.y=ry;if(rz)mesh.rotation.z=rz;gunG.add(mesh);return mesh;};
 
-  // ═══ 右手臂+手 (握枪手，所有枪共用) ═══
-  // 右前臂
-  const armR=new THREE.Mesh(new THREE.CylinderGeometry(.026,.03,.16,8),sleeve);
-  ad(armR,.04,-.035,.18,-.4,0,.12);
-  // 右手腕
-  ad(new THREE.Mesh(new THREE.BoxGeometry(.032,.025,.03),sk),.02,-.02,.06);
-  // 右手掌(包裹握把)
-  const handR=new THREE.Mesh(new THREE.BoxGeometry(.042,.035,.05),glv);
-  ad(handR,.01,-.025,.04);
-  // 右手四指(弯曲握枪)
-  for(let i=0;i<4;i++){const f=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.03,5),glv);ad(f,-.008+i*.009,-.04,.025,.3);}
-  // 右手大拇指(贴枪身侧面)
-  ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.006,.025,5),glv),.03,-.018,.055,.1,0,.3);
-  // 扳机手指(食指弯向扳机)
-  const trigF=new THREE.Mesh(new THREE.CylinderGeometry(.004,.005,.025,5),sk);
-  ad(trigF,.005,-.038,.01,.5);
 
   if(w.cat==='pistol'){
-    // ═══ 左轮手枪 ═══
-
-    // ── 枪管(裸露在框架上方，左轮特征) ──
-    const barrel=cyl(.008,.008,.2,mt);ad(barrel,0,.035,-.18);
-    // 枪口
-    ad(cyl(.012,.013,.012,mt),0,.035,-.29);
-    // 枪口内膛
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.008,6),B(0x050505)),0,.035,-.3);
-    // 准星(枪管顶端小突起)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.004,.01,.005),B(0xeeeeee,120)),0,.044,-.27);
-
-    // ── 框架(左轮的骨架，不是滑套) ──
-    // 顶部横梁(连接枪管和击锤)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.025,.012,.22),bk),0,.028,-.08);
-    // 底部框架(扳机到弹巢下方)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.03,.02,.12),bk),0,-.005,-.02);
-    // 后准星(框架后端的缺口)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.006,.008,.004),bk),-.009,.035,.02);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.006,.008,.004),bk),.009,.035,.02);
-
-    // ── ★ 弹巢(超大!左轮灵魂) ──
-    const drumMat=new THREE.MeshPhongMaterial({color:0x999999,shininess:100});
-    const drum=cyl(.034,.034,.048,drumMat,12);ad(drum,0,.015,-.06);
-    // 弹巢前面板
-    ad(cyl(.036,.036,.003,mt,12),0,.015,-.085);
-    // 弹巢后面板
-    ad(cyl(.036,.036,.003,mt,12),0,.015,-.035);
-    // 弹巢凹槽纹(12条竖线)
-    for(let fi=0;fi<12;fi++){
-      const fang=fi/12*Math.PI*2;
-      const fx=Math.cos(fang)*.035,fy=Math.sin(fang)*.035+.015;
-      const groove=new THREE.Mesh(new THREE.BoxGeometry(.002,.002,.05),B(0x666666));
-      groove.position.set(fx,fy,-.06);gunG.add(groove);
+    // ═══ 左轮手枪 (外部GLB模型) ═══
+    if(!window._revolverModel){
+      const loader=new THREE.GLTFLoader();
+      loader.load('revolver.glb',(gltf)=>{
+        const model=gltf.scene;
+        console.log('左轮加载成功');
+        // 先看看模型的包围盒大小
+        const box=new THREE.Box3().setFromObject(model);
+        const size=new THREE.Vector3();box.getSize(size);
+        console.log('左轮原始大小:',size.x,size.y,size.z);
+        model.scale.set(1,1,1);
+        model.rotation.set(0,0,0);
+        model.position.set(0,0,0);
+        model.traverse(c=>{if(c.isMesh){c.castShadow=true;}});
+        window._revolverModel=model.clone();
+        gunG.add(model);
+        const magG=new THREE.Group();magG.position.set(0,0,0);gunG.add(magG);
+        gunG.userData.magG=magG;gunG.userData.magPos=magG.position.clone();
+      },undefined,(err)=>{
+        console.error('左轮模型加载失败:',err);
+        const fallback=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.2),dk);
+        fallback.position.set(0,.01,-.1);gunG.add(fallback);
+      });
+    }else{
+      const clone=window._revolverModel.clone();
+      gunG.add(clone);
+      const magG=new THREE.Group();magG.position.set(0,0,0);gunG.add(magG);
+      gunG.userData.magG=magG;gunG.userData.magPos=magG.position.clone();
     }
-    // 弹巢6个弹孔
-    for(let ci=0;ci<6;ci++){
-      const ang=ci/6*Math.PI*2;
-      const chx=Math.cos(ang)*.02,chy=Math.sin(ang)*.02+.015;
-      const hole=new THREE.Mesh(new THREE.CylinderGeometry(.007,.007,.008,6),B(0x0a0a0a));
-      hole.position.set(chx,chy,-.092);hole.rotation.x=Math.PI/2;gunG.add(hole);
-      // 弹壳底部(铜色)
-      const shell=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.003,6),B(0xbb8833,80));
-      shell.position.set(chx,chy,-.09);shell.rotation.x=Math.PI/2;gunG.add(shell);
-    }
-    // 弹巢中心轴
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.06,6),mt),0,.015,-.06);
-    // 弹巢释放钮(左侧)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.01,.01,.015),mt),-.03,.015,-.04);
-    // 弹巢前后间隙线
-    ad(cyl(.044,.044,.002,B(0x333333),12),0,.015,-.033);
-    ad(cyl(.044,.044,.002,B(0x333333),12),0,.015,-.087);
-
-    // ── 击锤(后方突出，可见) ──
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.012,.022,.01),mt),0,.035,.04);
-    // 击锤纹理(防滑)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.014,.004,.004),B(0x555555)),0,.046,.04);
-
-    // ── 扳机+护圈 ──
-    // 圆弧护圈
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.026,.003,.04),dk),0,-.018,-.015);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.016,.003),dk),0,-.01,-.035);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.013,.003),dk),0,-.008,.005);
-    // 扳机
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.013,.006),mt),0,-.012,-.01);
-
-    // ── 握把(弯曲木柄，左轮经典造型) ──
-    // 握把主体(微弯)
-    const grip=new THREE.Mesh(new THREE.BoxGeometry(.026,.06,.032),wd);ad(grip,0,-.042,.015,-.25);
-    // 握把下半(更弯)
-    const grip2=new THREE.Mesh(new THREE.BoxGeometry(.024,.04,.028),wd);ad(grip2,0,-.075,.005,-.35);
-    // 握把两侧木纹面板
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.07,.026),B(0x6a4020,50)),-.014,-.05,.012,-.25);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.07,.026),B(0x6a4020,50)),.014,-.05,.012,-.25);
-    // 握把螺丝(两侧各一)
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.028,5),mt),0,-.05,.012,0,0,Math.PI/2);
-    // 握把底部金属盖
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.026,.006,.024),mt),0,-.095,.0);
-
-    // 弹巢组(检视用)
-    const magG=new THREE.Group();magG.position.set(0,0,0);gunG.add(magG);gunG.userData.magG=magG;gunG.userData.magPos=magG.position.clone();
-
-    // 左手托(双手持枪)
-    const armLP=new THREE.Mesh(new THREE.CylinderGeometry(.024,.028,.12,8),sleeve);ad(armLP,-.04,-.03,.08,.2,-.3,0);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.028,.02,.03),sk),-.025,-.02,.04);
-    const handLP=new THREE.Mesh(new THREE.BoxGeometry(.04,.03,.045),glv);ad(handLP,-.02,-.035,.02);
-    for(let i=0;i<4;i++){ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),glv),-.03+i*.008,-.048,.005,.4);}
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.02,5),glv),-.005,-.025,.045,0,0,.4);
-    gunG.position.set(.2,-.08,-.28);gunG.scale.set(1.15,1.15,1.15);
+    gunG.position.set(.26,-.18,-.34);
 
   } else if(w.sfx==='sniper'){
-    // ═══ 狙击枪 ═══
-    // 左手(前握)
-    const armL=new THREE.Mesh(new THREE.CylinderGeometry(.025,.028,.12,8),sleeve);ad(armL,-.03,-.02,-.15,.2,.3,0);
-    const handL=new THREE.Mesh(new THREE.BoxGeometry(.035,.028,.045),glv);ad(handL,-.02,-.01,-.2);
-    for(let i=0;i<4;i++){ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),glv),-.03+i*.008,-.022,-.22,.4);}
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.02,5),glv),-.005,-.002,-.175,0,0,.4);
-    // 枪管
-    const barrel2=cyl(.014,.012,.55,dk);ad(barrel2,0,.015,-.35);
-    // 枪管散热孔
-    const shroud=cyl(.018,.016,.12,mt);ad(shroud,0,.015,-.2);
-    // 枪口制退器
-    const mzBrk=cyl(.02,.018,.05,mt);ad(mzBrk,0,.015,-.63);
-    const mzSlot=new THREE.Mesh(new THREE.BoxGeometry(.025,.004,.04),B(0x333333));ad(mzSlot,0,.015,-.63);
-    // 机匣
-    const recv=new THREE.Mesh(new THREE.BoxGeometry(.055,.065,.28),bk);ad(recv,0,.01,0);
-    // 抛壳口
-    const eject2=new THREE.Mesh(new THREE.BoxGeometry(.02,.025,.05),B(0x333333,40));ad(eject2,.03,.02,-.02);
-    // 拉机柄
-    const bolt=new THREE.Mesh(new THREE.BoxGeometry(.04,.012,.015),mt);ad(bolt,.04,.025,.03);
-    const boltKnob=new THREE.Mesh(new THREE.SphereGeometry(.008,5,4),mt);ad(boltKnob,.055,.025,.03);
-    // 枪托
-    const stock=new THREE.Mesh(new THREE.BoxGeometry(.04,.052,.2),dk);ad(stock,0,-.003,.24);
-    // 枪托后垫
-    const buttPad=new THREE.Mesh(new THREE.BoxGeometry(.042,.06,.015),rubber);ad(buttPad,0,-.003,.34);
-    // 腮靠
-    const cheek=new THREE.Mesh(new THREE.BoxGeometry(.03,.02,.1),dk);ad(cheek,0,.03,.2);
-    // 弹匣(可拆卸)
-    const magG2=new THREE.Group();magG2.position.set(0,-.07,.05);gunG.add(magG2);gunG.userData.magG=magG2;gunG.userData.magPos=magG2.position.clone();
-    magG2.add(new THREE.Mesh(new THREE.BoxGeometry(.028,.09,.035),dk));
-    const mb2=new THREE.Mesh(new THREE.BoxGeometry(.03,.005,.037),mt);mb2.position.set(0,-.04,0);magG2.add(mb2);
-    // 瞄准镜
-    const scopeBody=cyl(.022,.022,.2,bk);ad(scopeBody,0,.06,-.04);
-    const scopeFLens=cyl(.025,.025,.008,B(0x2244aa,120));ad(scopeFLens,0,.06,-.15);
-    const scopeRLens=cyl(.02,.02,.005,B(0x2244aa,120));ad(scopeRLens,0,.06,.07);
-    const scopeRing1=cyl(.026,.026,.012,ac);ad(scopeRing1,0,.06,-.1);
-    const scopeRing2=cyl(.026,.026,.012,ac);ad(scopeRing2,0,.06,.02);
-    // 镜座
-    const scopeMount=new THREE.Mesh(new THREE.BoxGeometry(.02,.015,.06),mt);ad(scopeMount,0,.04,-.04);
-    // 导轨
-    const rail=new THREE.Mesh(new THREE.BoxGeometry(.016,.005,.25),mt);ad(rail,0,.045,-.02);
-    // 脚架折叠
-    const bipod1=new THREE.Mesh(new THREE.BoxGeometry(.004,.04,.004),mt);ad(bipod1,-.015,-.01,-.22,.4);
-    const bipod2=new THREE.Mesh(new THREE.BoxGeometry(.004,.04,.004),mt);ad(bipod2,.015,-.01,-.22,.4);
-    // 拉机柄防滑球纹理
-    ad(new THREE.Mesh(new THREE.TorusGeometry(.006,.002,4,6),dk),.055,.025,.03,Math.PI/2);
-    // 机匣螺丝
-    for(const[sx2,sz2] of [[.03,-.1],[.03,.08],[-.03,-.1],[-.03,.08]]){ad(new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.003,6),B(0x888888)),sx2,.04,sz2,Math.PI/2);}
-    // 枪管膛线(枪口内)
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.015,6),B(0x0a0a0a)),0,.015,-.66);
-    // 瞄准镜遮光罩
-    const sunShade=cyl(.027,.025,.04,bk);ad(sunShade,0,.06,-.18);
-    // 枪托底板防滑纹
-    for(let si=0;si<3;si++){ad(new THREE.Mesh(new THREE.BoxGeometry(.035,.004,.001),rubber),0,-.015+si*.012,.347);}
-    // 背带扣
-    ad(new THREE.Mesh(new THREE.TorusGeometry(.008,.002,4,6),mt),-.025,-.01,.28,0,0,Math.PI/2);
-    ad(new THREE.Mesh(new THREE.TorusGeometry(.008,.002,4,6),mt),-.02,.01,-.25,0,0,Math.PI/2);
+    // ═══ 狙击枪 (AWP外部模型) ═══
+    // 加载GLB模型
+    if(!window._awpModel){
+      const loader=new THREE.GLTFLoader();
+      loader.load('awp.glb',(gltf)=>{
+        const model=gltf.scene;
+        // 调整大小和位置
+        model.scale.set(.6,.6,.6);
+        model.rotation.set(0,0,0);
+        model.position.set(0,-.02,-.1);
+        model.traverse(c=>{if(c.isMesh){c.castShadow=true;}});
+        window._awpModel=model.clone();
+        gunG.add(model);
+        // 弹匣Group(用于换弹动画)
+        const magG2=new THREE.Group();magG2.position.set(0,-.07,.05);gunG.add(magG2);
+        gunG.userData.magG=magG2;gunG.userData.magPos=magG2.position.clone();
+      },undefined,(err)=>{
+        console.error('AWP模型加载失败:',err);
+        // 加载失败时用简单方块
+        const fallback=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.5),dk);
+        fallback.position.set(0,.01,-.15);gunG.add(fallback);
+      });
+    }else{
+      const clone=window._awpModel.clone();
+      gunG.add(clone);
+      const magG2=new THREE.Group();magG2.position.set(0,-.07,.05);gunG.add(magG2);
+      gunG.userData.magG=magG2;gunG.userData.magPos=magG2.position.clone();
+    }
     gunG.position.set(.26,-.18,-.34);
 
   } else if(w.cat==='heavy'&&w.sfx==='shotgun'){
     // ═══ 霰弹枪 ═══
-    const armL2=new THREE.Mesh(new THREE.CylinderGeometry(.025,.028,.1,8),sleeve);ad(armL2,-.025,-.015,-.12,.1,.3,0);
-    const handL2=new THREE.Mesh(new THREE.BoxGeometry(.035,.028,.04),glv);ad(handL2,-.015,-.01,-.15);
-    for(let i=0;i<4;i++){ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),glv),-.025+i*.008,-.022,-.17,.4);}
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.02,5),glv),0,0,-.13,0,0,.4);
     // 双枪管
     const bbl1=cyl(.013,.013,.35,dk);ad(bbl1,-.009,.016,-.2);
     const bbl2=cyl(.013,.013,.35,dk);ad(bbl2,.009,.016,-.2);
@@ -847,10 +695,6 @@ function buildGun(){
 
   } else if(w.sfx==='heavy'){
     // ═══ 重机枪 ═══
-    const armL3=new THREE.Mesh(new THREE.CylinderGeometry(.025,.028,.1,8),sleeve);ad(armL3,-.03,-.01,-.1,.1,.3,0);
-    const handL3=new THREE.Mesh(new THREE.BoxGeometry(.035,.028,.04),glv);ad(handL3,-.02,-.005,-.14);
-    for(let i=0;i<4;i++){ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),glv),-.03+i*.008,-.017,-.16,.4);}
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.02,5),glv),-.005,.005,-.12,0,0,.4);
     // 枪管+散热罩
     const barrel3=cyl(.02,.018,.45,dk);ad(barrel3,0,.015,-.28);
     const heatShield=cyl(.028,.026,.25,mt,12);ad(heatShield,0,.015,-.2);
@@ -892,181 +736,34 @@ function buildGun(){
     gunG.position.set(.24,-.18,-.35);
 
   } else if(w.n==='幻影'){
-    // ═══ 幻影 Phantom (1:1精细建模) ═══
-    // 左手(横握护木，用Group整体旋转)
-    const lhG=new THREE.Group();
-    lhG.position.set(0,-.005,-.2);
-    lhG.rotation.z=Math.PI/2;
-    // 手臂
-    const armLP=new THREE.Mesh(new THREE.CylinderGeometry(.025,.028,.1,8),sleeve);armLP.position.set(0,.04,.1);armLP.rotation.x=-.2;lhG.add(armLP);
-    // 手腕
-    const wristL=new THREE.Mesh(new THREE.BoxGeometry(.028,.02,.03),sk);wristL.position.set(0,.015,.04);lhG.add(wristL);
-    // 手掌
-    const handLP=new THREE.Mesh(new THREE.BoxGeometry(.04,.03,.045),glv);lhG.add(handLP);
-    // 四指
-    for(let i=0;i<4;i++){const f=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),glv);f.position.set(-.012+i*.008,-.012,-.02);f.rotation.x=.4;lhG.add(f);}
-    // 大拇指
-    const thumbL=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.02,5),glv);thumbL.position.set(.022,.005,.01);thumbL.rotation.z=-.4;lhG.add(thumbL);
-    gunG.add(lhG);
-
-    // ── 消音器(Phantom标志性一体式，长且细) ──
-    const suppOuter=cyl(.02,.018,.18,dk);ad(suppOuter,0,.018,-.46);
-    // 消音器前端收口
-    ad(cyl(.016,.014,.015,mt),0,.018,-.555);
-    // 消音器后端连接环
-    ad(cyl(.022,.022,.008,mt),0,.018,-.37);
-    // 消音器表面散热纹(6条竖线)
-    for(let si=0;si<6;si++){
-      const ang=si/6*Math.PI*2;
-      const sx=Math.cos(ang)*.021,sy=Math.sin(ang)*.021+.018;
-      ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.001,.16),B(0x333333)),sx,sy,-.46);
+    // ═══ 幻影 Phantom (外部GLB模型) ═══
+    if(!window._phantomModel){
+      const loader=new THREE.GLTFLoader();
+      loader.load('assault-rifle.glb',(gltf)=>{
+        const model=gltf.scene;
+        model.scale.set(.15,.15,.15);
+        model.rotation.set(0,Math.PI/2,0);
+        model.position.set(0,-.02,.1);
+        model.traverse(c=>{if(c.isMesh){c.castShadow=true;}});
+        window._phantomModel=model.clone();
+        gunG.add(model);
+        const magG2=new THREE.Group();magG2.position.set(0,-.07,.05);gunG.add(magG2);
+        gunG.userData.magG=magG2;gunG.userData.magPos=magG2.position.clone();
+      },undefined,(err)=>{
+        console.error('幻影模型加载失败:',err);
+        const fallback=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.5),dk);
+        fallback.position.set(0,.01,-.15);gunG.add(fallback);
+      });
+    }else{
+      const clone=window._phantomModel.clone();
+      gunG.add(clone);
+      const magG2=new THREE.Group();magG2.position.set(0,-.07,.05);gunG.add(magG2);
+      gunG.userData.magG=magG2;gunG.userData.magPos=magG2.position.clone();
     }
-    // 消音器前端内膛(水平)
-    ad(cyl(.008,.008,.01,B(0x050505)),0,.018,-.565);
-    // 消音器内部挡板(透过散热孔可见)
-    for(let bi=0;bi<4;bi++){ad(cyl(.016,.016,.003,B(0x222222)),0,.018,-.4-bi*.04);}
-
-    // ── 枪管(消音器内延伸) ──
-    const barrelP=cyl(.009,.008,.35,dk);ad(barrelP,0,.018,-.3);
-    // 导气管(枪管上方)
-    const gasTube=cyl(.004,.004,.12,mt);ad(gasTube,0,.03,-.2);
-    // 导气座
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.014,.01,.012),mt),0,.026,-.14);
-
-    // ── 护木(Phantom风格：棱角分明+三角形截面) ──
-    // 护木主体
-    const hgP=new THREE.Mesh(new THREE.BoxGeometry(.042,.032,.2),bk);ad(hgP,0,.014,-.2);
-    // 护木上表面斜切(两侧倒角)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.038,.006,.18),B(0x1a1a1a)),0,.032,-.2);
-    // 护木散热长槽(两侧各4条)
-    for(let i=0;i<4;i++){
-      ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.014,.02),B(0x0a0a0a)),-.023,.014,-.13-i*.04);
-      ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.014,.02),B(0x0a0a0a)),.023,.014,-.13-i*.04);
-    }
-    // 上导轨(全长Picatinny)
-    const topRailP=new THREE.Mesh(new THREE.BoxGeometry(.014,.005,.35),mt);ad(topRailP,0,.036,-.08);
-    // 导轨齿纹
-    for(let ri=0;ri<18;ri++){ad(new THREE.Mesh(new THREE.BoxGeometry(.015,.002,.003),B(0x555555)),0,.04,.06-ri*.02);}
-    // 侧导轨短节
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.004,.005,.06),mt),-.023,.018,-.18);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.004,.005,.06),mt),.023,.018,-.18);
-
-    // ── 上机匣(Phantom特征：流线型，前低后高) ──
-    const uRecvP=new THREE.Mesh(new THREE.BoxGeometry(.04,.028,.18),dk);ad(uRecvP,0,.028,.02);
-    // 上机匣前端斜切(与护木衔接)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.038,.015,.02),B(0x222222)),0,.02,-.07);
-    // 上机匣后端凸起(腮靠对接)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.036,.008,.04),dk),0,.044,.06);
-
-    // ── 下机匣 ──
-    const lRecvP=new THREE.Mesh(new THREE.BoxGeometry(.046,.038,.14),bk);ad(lRecvP,0,.004,.04);
-    // 弹匣井加强筋
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.048,.004,.04),B(0x222222)),0,-.015,.02);
-    // 上下机匣连接销(前后各一)
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.048,5),mt),0,.018,-.03,0,0,Math.PI/2);
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.048,5),mt),0,.018,.08,0,0,Math.PI/2);
-
-    // ── 抛壳口(右侧) ──
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.018,.035),B(0x333333,40)),.024,.024,.0);
-    // 防尘盖
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.002,.016,.03),dk),.025,.024,.0);
-    // 拉机柄(Phantom风格：T型)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.035,.006,.01),mt),.03,.038,.04);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.008,.006,.015),mt),.048,.038,.04);
-    // 拉机柄防滑纹
-    for(let si=0;si<3;si++){ad(new THREE.Mesh(new THREE.BoxGeometry(.006,.002,.002),B(0x444444)),.048,.042,.036+si*.004);}
-    // 前方辅助推进器
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.008,.008,.008),mt),.026,.033,-.04);
-
-    // ── 弹匣(Phantom：直弹匣，半透明风格) ──
-    const magGP=new THREE.Group();magGP.position.set(.05,-.033,.02);gunG.add(magGP);gunG.userData.magG=magGP;gunG.userData.magPos=magGP.position.clone();
-    // 弹匣主体
-    const magBodyP=new THREE.Mesh(new THREE.BoxGeometry(.022,.07,.025),ac);magGP.add(magBodyP);
-    // 弹匣观察窗(半透明区域)
-    const magWindow=new THREE.Mesh(new THREE.BoxGeometry(.001,.04,.018),B(0x445566,80));magWindow.position.set(.012,-.005,0);magGP.add(magWindow);
-    const magWindow2=new THREE.Mesh(new THREE.BoxGeometry(.001,.04,.018),B(0x445566,80));magWindow2.position.set(-.012,-.005,0);magGP.add(magWindow2);
-    // 弹匣底板
-    const mbP=new THREE.Mesh(new THREE.BoxGeometry(.024,.005,.027),mt);mbP.position.set(0,-.035,0);magGP.add(mbP);
-    // 弹匣卡笋
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.008,.008,.006),mt),.018,-.015,.02);
-
-    // ── 扳机组 ──
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.024,.003,.038),dk),0,-.016,.06);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.013,.003),dk),0,-.009,.04);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.011,.003),dk),0,-.007,.078);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.003,.012,.006),mt),0,-.01,.055);
-    // 快慢机(左侧)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.018,.005,.007),mt),.026,.008,.06);
-    // 空仓挂机(左侧)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.006,.006,.004),mt),.026,.012,.04);
-
-    // ── 握把(Phantom：流线型人体工学) ──
-    const gripP=new THREE.Mesh(new THREE.BoxGeometry(.024,.06,.032),dk);ad(gripP,0,-.038,.09,-.2);
-    // 握把指槽纹理
-    for(let gi=0;gi<3;gi++){ad(new THREE.Mesh(new THREE.BoxGeometry(.02,.003,.007),B(0x0a0a0a)),0,-.02-gi*.012,.088,-.2);}
-    // 握把侧面防滑纹(左右)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.035,.02),B(0x0a0a0a)),-.013,-.038,.088,-.2);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.035,.02),B(0x0a0a0a)),.013,-.038,.088,-.2);
-    // 握把底部堵盖
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.026,.005,.028),dk),0,-.068,.084);
-
-    // ── 枪托(Phantom：骨架式可折叠) ──
-    // 缓冲管
-    ad(cyl(.01,.01,.1,dk),0,.015,.16);
-    // 枪托主体(镂空骨架风格)
-    const stockP=new THREE.Mesh(new THREE.BoxGeometry(.03,.035,.08),dk);ad(stockP,0,.012,.24);
-    // 枪托镂空(中间)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.018,.015,.05),B(0x0a0a0a)),0,.012,.24);
-    // 肩垫
-    const buttPadP=new THREE.Mesh(new THREE.BoxGeometry(.032,.042,.01),rubber);ad(buttPadP,0,.012,.28);
-    // 肩垫防滑纹
-    for(let si=0;si<4;si++){ad(new THREE.Mesh(new THREE.BoxGeometry(.026,.003,.001),rubber),0,-.003+si*.008,.286);}
-    // 枪托调节杆
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.005,.005,.06),mt),-.012,.0,.2);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.005,.005,.06),mt),.012,.0,.2);
-    // 调节锁扣
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.008,.012,.006),mt),0,-.008,.2);
-    // 腮靠(可调)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.024,.01,.05),dk),0,.033,.22);
-    // 背带环
-    ad(new THREE.Mesh(new THREE.TorusGeometry(.005,.002,4,6),mt),-.018,.01,.27,0,0,Math.PI/2);
-
-    // ── 瞄具(Phantom：全息瞄准镜) ──
-    // 镜座
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.018,.008,.035),mt),0,.042,.0);
-    // 瞄准镜主体(方形全息)
-    const holoP=new THREE.Mesh(new THREE.BoxGeometry(.026,.03,.04),bk);ad(holoP,0,.058,0);
-    // 前窗(蓝色镀膜)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.022,.024,.003),B(0x1133aa,130)),0,.058,-.02);
-    // 后窗
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.018,.018,.003),B(0x112244,120)),0,.058,.02);
-    // 全息准星(绿色圆环+点)
-    ad(new THREE.Mesh(new THREE.TorusGeometry(.006,.001,6,8),B(0x00ff44,150)),0,.058,-.022);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.002,.002,.001),B(0x00ff44,150)),0,.058,-.023);
-    // 亮度旋钮
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.005,5),mt),.016,.062,0,0,0,Math.PI/2);
-    // 瞄准镜护罩(两侧翼)
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.002,.032,.038),bk),-.014,.058,0);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.002,.032,.038),bk),.014,.058,0);
-
-    // ── 机匣装饰(Phantom科幻风) ──
-    // 机匣侧面线条装饰
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.002,.12),ac),-.024,.03,-.02);
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.002,.12),ac),.024,.03,-.02);
-    // 机匣后端Logo区域
-    ad(new THREE.Mesh(new THREE.BoxGeometry(.001,.012,.015),ac),.024,.025,.08);
-    // 机匣螺丝
-    for(const[sx,sz] of [[.025,.06],[.025,-.02],[-.025,.06],[-.025,-.02]]){ad(new THREE.Mesh(new THREE.CylinderGeometry(.002,.002,.003,5),B(0x888888)),sx,.018,sz,0,0,Math.PI/2);}
-
-    gunG.position.set(.24,-.16,-.35);
+    gunG.position.set(.26,-.18,-.34);
 
   } else if(w.cat==='rifle'){
     // ═══ 步枪 (Vandal风格) ═══
-    // 左手(C型前握护木)
-    const armL4=new THREE.Mesh(new THREE.CylinderGeometry(.025,.028,.1,8),sleeve);ad(armL4,-.03,-.015,-.14,.15,.3,0);
-    const handL4=new THREE.Mesh(new THREE.BoxGeometry(.035,.028,.045),glv);ad(handL4,-.018,-.01,-.18);
-    for(let i=0;i<4;i++){ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.025,5),glv),-.028+i*.008,-.022,-.2,.4);}
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,.02,5),glv),-.003,-.002,-.16,0,0,.4);
 
     // ── 枪管(长+细) ──
     const barrel4=cyl(.011,.009,.38,dk);ad(barrel4,0,.018,-.34);
@@ -1195,10 +892,6 @@ function buildGun(){
 
   } else {
     // ═══ 冲锋枪 ═══
-    const armL5=new THREE.Mesh(new THREE.CylinderGeometry(.024,.027,.08,8),sleeve);ad(armL5,-.025,-.012,-.08,.1,.3,0);
-    const handL5=new THREE.Mesh(new THREE.BoxGeometry(.032,.026,.04),glv);ad(handL5,-.015,-.008,-.11);
-    for(let i=0;i<4;i++){ad(new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.022,5),glv),-.025+i*.008,-.018,-.13,.4);}
-    ad(new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.018,5),glv),0,0,-.09,0,0,.4);
     // 枪管
     const barrel5=cyl(.009,.008,.18,dk);ad(barrel5,0,.014,-.2);
     // 消音器/枪口
@@ -1250,16 +943,16 @@ function addP(g,geo,mat,px,py,pz,rx,ry,rz){
 function buildBody(opts){
   const g=new THREE.Group();
   const h=opts.h||1.8;
-  const primary=new THREE.MeshStandardMaterial({color:opts.primary,roughness:.6,metalness:.1});
-  const secondary=new THREE.MeshStandardMaterial({color:opts.secondary||0x333333,roughness:.7});
-  const dark=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.8});
-  const leather=new THREE.MeshStandardMaterial({color:0x2a2218,roughness:.85});
-  const skin=new THREE.MeshStandardMaterial({color:opts.skin||0xc4a882,roughness:.5,metalness:0});
+  const primary=new THREE.MeshStandardMaterial({color:opts.primary,roughness:.55,metalness:.08,envMapIntensity:.6});
+  const secondary=new THREE.MeshStandardMaterial({color:opts.secondary||0x333333,roughness:.65,envMapIntensity:.4});
+  const dark=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.75,metalness:.02});
+  const leather=new THREE.MeshStandardMaterial({color:0x2a2218,roughness:.9,metalness:.03});
+  const skin=new THREE.MeshStandardMaterial({color:opts.skin||0xc4a882,roughness:.45,metalness:0,emissive:opts.skin||0xc4a882,emissiveIntensity:.02});
   const eyeM=new THREE.MeshBasicMaterial({color:opts.eyeColor||0xff0000});
-  const metal=new THREE.MeshStandardMaterial({color:0x555555,roughness:.3,metalness:.6});
-  const belt=new THREE.MeshStandardMaterial({color:0x3a3020,roughness:.8});
-  const accent=new THREE.MeshStandardMaterial({color:opts.accent||opts.primary,roughness:.5,metalness:.15});
-  const fabric=new THREE.MeshStandardMaterial({color:opts.secondary||0x2a2a2a,roughness:.9});
+  const metal=new THREE.MeshStandardMaterial({color:0x555555,roughness:.25,metalness:.7,envMapIntensity:.8});
+  const belt=new THREE.MeshStandardMaterial({color:0x3a3020,roughness:.85,metalness:.05});
+  const accent=new THREE.MeshStandardMaterial({color:opts.accent||opts.primary,roughness:.45,metalness:.18,envMapIntensity:.5});
+  const fabric=new THREE.MeshStandardMaterial({color:opts.secondary||0x2a2a2a,roughness:.92});
 
   // ── LEGS ──
   const lm=.7;
@@ -1732,9 +1425,9 @@ function shoot(){
     const mv2=new THREE.Vector3(K['KeyW']||K['KeyS']?1:0,0,K['KeyA']||K['KeyD']?1:0);
     const moving=mv2.length()>.1;
     const sprintNow=K['ShiftLeft']||K['ShiftRight'];
-    const moveSpread=moving?(sprintNow?w.spread*5:w.spread*3):0;
-    const spraySpread=w.auto?Math.min(sprayCount*.004,.04):0;
-    const totalSpread=w.spread+moveSpread+spraySpread;
+    const moveSpread=moving?(sprintNow?w.spread*2:w.spread*1):0;
+    const spraySpread=w.auto?Math.min(sprayCount*.002,.02):0;
+    const totalSpread=w.spread*0.5+moveSpread+spraySpread;
     aimDir.x+=(Math.random()-.5)*totalSpread;
     aimDir.y+=(Math.random()-.5)*totalSpread;
     aimDir.normalize();
@@ -1752,19 +1445,19 @@ function shoot(){
       const headD=toHead.length();
       toHead.normalize();
       const headDot=aimDir.dot(toHead);
-      const headRadius=0.22;
+      const headRadius=0.15;
       const headThresh=Math.cos(Math.atan(headRadius/headD));
-      const isHS=headDot>Math.max(w.pellets?0.97:0.992, Math.min(0.9995,headThresh));
+      const isHS=headDot>Math.max(w.pellets?0.97:0.998, Math.min(0.99995,headThresh));
 
       // 身体命中检测
       const toE=new THREE.Vector3(ex, (h*0.45)-pos.y, ez);
       const d=toE.length();
       toE.normalize();
       const dot=aimDir.dot(toE);
-      const bodyRadius=0.35;
+      const bodyRadius=0.18;
       const threshold=Math.cos(Math.atan(bodyRadius/d));
-      const minThreshold=w.pellets?0.97:0.995;
-      const finalThreshold=Math.max(minThreshold, Math.min(0.9998, threshold));
+      const minThreshold=w.pellets?0.97:0.999;
+      const finalThreshold=Math.max(minThreshold, Math.min(0.99995, threshold));
       const bodyHit=dot>finalThreshold;
 
       if((bodyHit||isHS)&&flatD<bestD){
@@ -2448,7 +2141,7 @@ function startRound(){
   abFx.forEach(a=>scene.remove(a.m));abFx.length=0;
   const cl={...GUNS.classic,maxMag:GUNS.classic.mag};
   weapons=[cl,null,{n:'小刀',cat:'knife'}];slot=0;reloading=false;semiCD=0;switching=false;switchT=0;switchTo=-1;recoilPitch=0;
-  pos.set(0,1.7,45);yaw=0;pitch=0;
+  pos.set(0,1.7,0);yaw=0;pitch=0;
   if(selAgent)AGENTS[selAgent].ab.forEach((a,i)=>{if(i<3)a.ch=a.mx;});
   buildGun();gunG.visible=true;updAbHUD();
 
@@ -2589,7 +2282,7 @@ function startTrainRound(){
   abFx.forEach(a=>scene.remove(a.m));abFx.length=0;
   const cl={...GUNS.classic,maxMag:GUNS.classic.mag};
   weapons=[cl,null,{n:'小刀',cat:'knife'}];slot=0;reloading=false;semiCD=0;switching=false;switchT=0;switchTo=-1;recoilPitch=0;
-  pos.set(0,1.7,45);yaw=0;pitch=0;
+  pos.set(0,1.7,0);yaw=0;pitch=0;
   if(selAgent)AGENTS[selAgent].ab.forEach((a,i)=>{if(i<3)a.ch=a.mx;});
   buildGun();gunG.visible=true;updAbHUD();
 
@@ -2847,10 +2540,43 @@ function loop(){
     if(dist<charRadius&&dist>.01){const push=charRadius-dist;pos.x+=dx/dist*push;pos.z+=dz/dist*push;}
   }
   if(K['Space']&&grounded){vy=isKnife0?10:7;grounded=false;}
-  vy-=20*dt;pos.y+=vy*dt;
-  const standH=sliding?.9:1.7; // 滑铲时视角降低
+  // 射线检测脚下地面高度(GLB地图)
+  let groundY=0;
+  let climbing=false;
+  if(window._mapMeshes&&window._mapMeshes.length>0){
+    const downRay=new THREE.Raycaster(new THREE.Vector3(pos.x,pos.y+1,pos.z),new THREE.Vector3(0,-1,0),0,50);
+    const gHits=downRay.intersectObjects(window._mapMeshes,false);
+    if(gHits.length>0) groundY=gHits[0].point.y;
+
+    // 攀爬检测：往前方稍远处向下射线，看地面是否比当前高
+    if(K['KeyW']||K['KeyS']||K['KeyA']||K['KeyD']){
+      const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)).normalize();
+      // 在前方1米处向下打射线
+      const aheadPos=new THREE.Vector3(pos.x+fwd.x*1.2, pos.y+5, pos.z+fwd.z*1.2);
+      const aheadRay=new THREE.Raycaster(aheadPos,new THREE.Vector3(0,-1,0),0,20);
+      const aheadHits=aheadRay.intersectObjects(window._mapMeshes,false);
+      if(aheadHits.length>0){
+        const aheadGroundY=aheadHits[0].point.y;
+        // 前方地面比脚下高0.3以上→需要爬升
+        if(aheadGroundY>groundY+0.3 && aheadGroundY<groundY+8){
+          climbing=true;
+          pos.y+=dt*4;
+          vy=0;
+          grounded=true;
+        }
+      }
+    }
+  }
+  // 重力(攀爬时完全跳过)
+  if(climbing){
+    vy=0;
+  }else{
+    vy-=20*dt;
+    pos.y+=vy*dt;
+  }
+  const standH=(sliding?.9:1.7)+groundY;
   if(pos.y<=standH){pos.y=standH;vy=0;grounded=true;}
-  pos.x=Math.max(-MW+1,Math.min(MW-1,pos.x));pos.z=Math.max(-MD+1,Math.min(MD-1,pos.z));
+  pos.x=Math.max(-500,Math.min(500,pos.x));pos.z=Math.max(-500,Math.min(500,pos.z));
 
   camera.position.copy(pos);camera.rotation.set(0,0,0);camera.rotateY(yaw);camera.rotateX(pitch);
 
@@ -3174,7 +2900,81 @@ function loop(){
     else sprayYaw=0;
   }
 
-  if(reloading){reloadT-=dt;if(reloadT<=0){const w=curW();if(w){const a=Math.min((w.maxMag||w.mag)-w.mag,w.res);w.mag+=a;w.res-=a;}reloading=false;updHUD();}}
+  // 换弹动画(弹匣拔出→插入)
+  if(reloading){
+    reloadT-=dt;
+    const w=curW();if(!w){reloading=false;}
+    else{
+      const totalT=w.reload||2;
+      const progress=1-reloadT/totalT; // 0→1
+      const magG=gunG.userData.magG;
+      const magPos=gunG.userData.magPos;
+      if(magG&&magPos){
+        if(progress<.15){
+          // 阶段1: 左手移到弹匣位置
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,.15,.1);
+        }else if(progress<.4){
+          // 阶段2: 拔出弹匣(往下拉)
+          const t2=(progress-.15)/.25;
+          magG.position.y=magPos.y-t2*.12;
+          magG.position.z=magPos.z-t2*.03;
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,.1,.05);
+        }else if(progress<.55){
+          // 阶段3: 旧弹匣消失(移到画面外)
+          magG.position.y=magPos.y-.2;
+          magG.position.x=magPos.x-.05;
+        }else if(progress<.75){
+          // 阶段4: 新弹匣从下方插入
+          const t4=(progress-.55)/.2;
+          magG.position.x=THREE.MathUtils.lerp(magG.position.x,magPos.x,.15);
+          magG.position.y=THREE.MathUtils.lerp(magG.position.y,magPos.y-(.12*(1-t4)),.15);
+          magG.position.z=THREE.MathUtils.lerp(magG.position.z,magPos.z,.1);
+        }else if(progress<.9){
+          // 阶段5: 弹匣推到位+拍一下
+          magG.position.x=THREE.MathUtils.lerp(magG.position.x,magPos.x,.2);
+          magG.position.y=THREE.MathUtils.lerp(magG.position.y,magPos.y,.2);
+          magG.position.z=THREE.MathUtils.lerp(magG.position.z,magPos.z,.2);
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,-.05,.1);
+        }else{
+          // 阶段6: 回正
+          magG.position.x=THREE.MathUtils.lerp(magG.position.x,magPos.x,.15);
+          magG.position.y=THREE.MathUtils.lerp(magG.position.y,magPos.y,.15);
+          magG.position.z=THREE.MathUtils.lerp(magG.position.z,magPos.z,.15);
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,0,.12);
+        }
+      }
+      if(reloadT<=0&&!window._chambering){
+        // 弹匣插好后开始拉栓
+        window._chambering=true;window._chamberT=0;
+        const a=Math.min((w.maxMag||w.mag)-w.mag,w.res);w.mag+=a;w.res-=a;
+        updHUD();
+        if(magG&&magPos){magG.position.copy(magPos);}
+      }
+      if(window._chambering){
+        window._chamberT+=dt;
+        const ct=window._chamberT;
+        if(ct<.15){
+          // 拉栓：手往后拉
+          gunG.position.z=THREE.MathUtils.lerp(gunG.position.z,baseZ+.06,.2);
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,-.08,.15);
+        }else if(ct<.25){
+          // 松手：枪栓弹回
+          gunG.position.z=THREE.MathUtils.lerp(gunG.position.z,baseZ-.02,.25);
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,.03,.2);
+          sfx('reload');
+        }else if(ct<.4){
+          // 回正
+          gunG.position.z=THREE.MathUtils.lerp(gunG.position.z,baseZ,.12);
+          gunG.rotation.x=THREE.MathUtils.lerp(gunG.rotation.x,0,.12);
+        }else{
+          // 完成
+          gunG.rotation.x=0;
+          reloading=false;
+          window._chambering=false;
+        }
+      }
+    }
+  }
   }
 
   // Timer

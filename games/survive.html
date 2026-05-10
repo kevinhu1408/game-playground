@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>荒野挨饿 — 生存</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif;cursor:default}
+canvas{display:block}
+#hud{position:fixed;top:10px;left:10px;z-index:10;display:none}
+.bar{width:150px;height:16px;background:rgba(0,0,0,.6);border-radius:8px;margin-bottom:4px;overflow:hidden;border:1px solid rgba(255,255,255,.15)}
+.bar-fill{height:100%;border-radius:7px;transition:width .3s}
+.bar-hp .bar-fill{background:linear-gradient(90deg,#cc2222,#ff4444)}
+.bar-food .bar-fill{background:linear-gradient(90deg,#cc8822,#ffaa44)}
+.bar-san .bar-fill{background:linear-gradient(90deg,#8822cc,#aa44ff)}
+.bar-label{color:#fff;font-size:10px;position:absolute;width:150px;text-align:center;line-height:16px;text-shadow:0 1px 2px #000}
+.bar{position:relative}
+#dayTime{position:fixed;top:10px;right:10px;color:#fff;font-size:13px;z-index:10;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:4px;display:none}
+#inv{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:none;z-index:10}
+#invGrid{display:flex;gap:3px}
+.inv-slot{width:46px;height:46px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.15);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:18px;position:relative;cursor:pointer}
+.inv-slot.active{border-color:#ffaa22;background:rgba(255,170,34,.15)}
+.inv-slot .qty{position:absolute;bottom:1px;right:3px;font-size:9px;color:#ccc}
+.inv-slot .nm{font-size:7px;color:#aaa}
+#craft{position:fixed;right:10px;bottom:10px;z-index:10;display:none;background:rgba(0,0,0,.7);border-radius:6px;padding:8px;max-height:300px;overflow-y:auto}
+#craft h4{color:#ffaa22;font-size:12px;margin-bottom:6px}
+.craft-row{display:flex;align-items:center;gap:6px;padding:4px;cursor:pointer;border-radius:3px;font-size:11px;color:#ccc}
+.craft-row:hover{background:rgba(255,255,255,.1)}
+.craft-row.disabled{opacity:.4;cursor:default}
+#msg{position:fixed;top:40%;left:50%;transform:translateX(-50%);color:#fff;font-size:22px;opacity:0;transition:opacity .3s;z-index:10;text-shadow:0 2px 8px #000;pointer-events:none}
+#overlay{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.9)}
+#overlay h1{font-size:42px;color:#ffaa22;letter-spacing:5px}
+#overlay .sub{color:#886622;font-size:13px;letter-spacing:3px;margin-top:4px}
+#overlay p{color:rgba(255,255,255,.4);font-size:11px;margin-top:8px}
+.pbtn{padding:12px 36px;font-size:16px;background:#886622;color:#fff;border:none;cursor:pointer;border-radius:6px;margin-top:16px;letter-spacing:2px}
+.pbtn:hover{background:#aa8833}
+#deathScreen{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.9)}
+#deathScreen h1{color:#ff4444;font-size:36px}
+#deathScreen p{color:#aaa;font-size:14px;margin-top:8px}
+</style>
+</head><body>
+<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;border:1px solid rgba(255,255,255,.15);cursor:pointer;font-family:sans-serif">← 返回主页</a>
+<div id="hud">
+  <div class="bar bar-hp"><div class="bar-fill" id="hpFill" style="width:100%"></div><div class="bar-label">❤ 100</div></div>
+  <div class="bar bar-food"><div class="bar-fill" id="foodFill" style="width:100%"></div><div class="bar-label">🍖 100</div></div>
+  <div class="bar bar-san"><div class="bar-fill" id="sanFill" style="width:100%"></div><div class="bar-label">🧠 100</div></div>
+</div>
+<div id="dayTime">☀ 第1天</div>
+<div id="inv"><div id="invGrid"></div></div>
+<div id="craft"><h4>🔨 制作</h4><div id="craftList"></div></div>
+<div id="msg"></div>
+<div id="overlay">
+  <h1>荒野挨饿</h1>
+  <div class="sub">DON'T STARVE</div>
+  <p>WASD移动 | 左键采集/攻击 | 1-8切换物品 | E制作</p>
+  <p>活过尽可能多的天数!</p>
+  <button class="pbtn" onclick="startGame()">开始生存</button>
+</div>
+<div id="deathScreen">
+  <h1>你死了</h1>
+  <p id="deathMsg">饿死了...</p>
+  <p id="deathDays">存活: 0天</p>
+  <button class="pbtn" onclick="location.reload()">重新开始</button>
+</div>
+<canvas id="c"></canvas>
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+canvas.width=innerWidth;canvas.height=innerHeight;
+window.addEventListener('resize',()=>{canvas.width=innerWidth;canvas.height=innerHeight;});
+
+// ═══════ GAME STATE ═══════
+let state='menu';
+const WORLD=3000;
+const player={x:WORLD/2,y:WORLD/2,hp:100,food:100,sanity:100,speed:3,dir:0,equipped:0};
+const K={};let mouseX=0,mouseY=0,mouseDown=false;
+let dayTime=0,day=1,nightAlpha=0;
+const DAY_LENGTH=120; // 秒
+const items=[];const mobs=[];const structures=[];const drops=[];
+
+// ═══════ ITEMS ═══════
+const ITEMS={
+  log:{name:'木头',icon:'🪵',stack:20},
+  stone:{name:'石头',icon:'🪨',stack:20},
+  grass:{name:'草',icon:'🌿',stack:20},
+  flint:{name:'燧石',icon:'🪨',stack:10,tint:'#ddaa44'},
+  berry:{name:'浆果',icon:'🫐',stack:10,food:12},
+  meat:{name:'肉',icon:'🥩',stack:5,food:25},
+  cookedMeat:{name:'烤肉',icon:'🍖',stack:5,food:40,hp:5},
+  axe:{name:'斧头',icon:'🪓',tool:true,power:2},
+  pickaxe:{name:'镐子',icon:'⛏️',tool:true,power:2},
+  spear:{name:'长矛',icon:'🔱',weapon:true,dmg:20},
+  torch:{name:'火把',icon:'🔦',light:true,dur:60},
+  campfire:{name:'篝火',icon:'🔥',place:true},
+  wall:{name:'木墙',icon:'🧱',place:true},
+};
+
+const RECIPES=[
+  {id:'axe',cost:{log:3,flint:2},name:'🪓 斧头'},
+  {id:'pickaxe',cost:{stone:3,flint:2},name:'⛏️ 镐子'},
+  {id:'spear',cost:{log:2,flint:2,grass:3},name:'🔱 长矛'},
+  {id:'torch',cost:{log:1,grass:2},name:'🔦 火把'},
+  {id:'campfire',cost:{log:5,stone:3,grass:2},name:'🔥 篝火'},
+  {id:'wall',cost:{log:4,grass:2},name:'🧱 木墙'},
+];
+
+// Inventory: [{id,qty}]
+const inventory=Array(8).fill(null);
+
+function invCount(id){let c=0;inventory.forEach(s=>{if(s&&s.id===id)c+=s.qty;});return c;}
+function invAdd(id,amt){
+  amt=amt||1;
+  // Stack existing
+  for(let i=0;i<8;i++){if(inventory[i]&&inventory[i].id===id&&inventory[i].qty<(ITEMS[id].stack||1)){const add=Math.min(amt,(ITEMS[id].stack||1)-inventory[i].qty);inventory[i].qty+=add;amt-=add;if(amt<=0)return true;}}
+  // New slot
+  for(let i=0;i<8;i++){if(!inventory[i]){const add=Math.min(amt,ITEMS[id].stack||1);inventory[i]={id,qty:add};amt-=add;if(amt<=0)return true;}}
+  return amt<=0;
+}
+function invRemove(id,amt){
+  amt=amt||1;
+  for(let i=7;i>=0;i--){if(inventory[i]&&inventory[i].id===id){const take=Math.min(amt,inventory[i].qty);inventory[i].qty-=take;amt-=take;if(inventory[i].qty<=0)inventory[i]=null;if(amt<=0)return true;}}
+  return false;
+}
+function canCraft(r){for(const k in r.cost){if(invCount(k)<r.cost[k])return false;}return true;}
+function craft(r){
+  if(!canCraft(r))return;
+  for(const k in r.cost)invRemove(k,r.cost[k]);
+  invAdd(r.id,1);renderInv();renderCraft();
+  showMsg('制作了 '+ITEMS[r.id].icon+ITEMS[r.id].name);
+}
+
+// ═══════ WORLD GEN ═══════
+const worldObjects=[];
+function genWorld(){
+  // Trees
+  for(let i=0;i<300;i++){
+    const x=200+Math.random()*(WORLD-400),y=200+Math.random()*(WORLD-400);
+    worldObjects.push({type:'tree',x,y,hp:3,r:18});
+  }
+  // Rocks
+  for(let i=0;i<120;i++){
+    const x=200+Math.random()*(WORLD-400),y=200+Math.random()*(WORLD-400);
+    worldObjects.push({type:'rock',x,y,hp:3,r:14});
+  }
+  // Bushes (berries)
+  for(let i=0;i<80;i++){
+    const x=200+Math.random()*(WORLD-400),y=200+Math.random()*(WORLD-400);
+    worldObjects.push({type:'bush',x,y,hasBerry:true,r:12,regrow:0});
+  }
+  // Flint on ground
+  for(let i=0;i<60;i++){
+    const x=200+Math.random()*(WORLD-400),y=200+Math.random()*(WORLD-400);
+    drops.push({id:'flint',x,y,qty:1});
+  }
+  // Grass patches
+  for(let i=0;i<100;i++){
+    const x=200+Math.random()*(WORLD-400),y=200+Math.random()*(WORLD-400);
+    worldObjects.push({type:'grass',x,y,r:8,regrow:0,hasGrass:true});
+  }
+}
+
+// ═══════ RENDER ═══════
+function drawWorld(){
+  const cx=player.x-canvas.width/2,cy=player.y-canvas.height/2;
+  // Ground
+  ctx.fillStyle='#3a5a2a';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Grid pattern
+  ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=1;
+  for(let gx=(-cx%50);gx<canvas.width;gx+=50){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,canvas.height);ctx.stroke();}
+  for(let gy=(-cy%50);gy<canvas.height;gy+=50){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(canvas.width,gy);ctx.stroke();}
+
+  // World objects
+  worldObjects.forEach(o=>{
+    const sx=o.x-cx,sy=o.y-cy;
+    if(sx<-50||sx>canvas.width+50||sy<-50||sy>canvas.height+50)return;
+    if(o.type==='tree'){
+      // Shadow
+      ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(sx+3,sy+5,16,10,0,0,Math.PI*2);ctx.fill();
+      // Trunk
+      ctx.fillStyle='#5a3a1a';ctx.fillRect(sx-4,sy-5,8,18);
+      // Leaves
+      ctx.fillStyle='#2a6a1a';ctx.beginPath();ctx.arc(sx,sy-12,18,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#3a8a2a';ctx.beginPath();ctx.arc(sx-5,sy-8,12,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(sx+6,sy-10,10,0,Math.PI*2);ctx.fill();
+    }else if(o.type==='rock'){
+      ctx.fillStyle='rgba(0,0,0,.1)';ctx.beginPath();ctx.ellipse(sx+2,sy+3,14,8,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#888877';ctx.beginPath();ctx.arc(sx,sy,12,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#999988';ctx.beginPath();ctx.arc(sx-3,sy-2,8,0,Math.PI*2);ctx.fill();
+    }else if(o.type==='bush'){
+      ctx.fillStyle=o.hasBerry?'#2a5a2a':'#3a4a2a';
+      ctx.beginPath();ctx.arc(sx,sy,10,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#3a7a3a';ctx.beginPath();ctx.arc(sx-3,sy-2,7,0,Math.PI*2);ctx.fill();
+      if(o.hasBerry){ctx.fillStyle='#6622aa';for(let bi=0;bi<4;bi++){ctx.beginPath();ctx.arc(sx-4+bi*3,sy-1+((bi%2)*3),2.5,0,Math.PI*2);ctx.fill();}}
+    }else if(o.type==='grass'){
+      if(o.hasGrass){
+        ctx.fillStyle='#4a8a2a';
+        for(let gi=0;gi<5;gi++){const gx2=sx-6+gi*3,gy2=sy+2;ctx.fillRect(gx2,gy2-10-Math.random()*4,2,10+Math.random()*4);}
+      }
+    }
+  });
+
+  // Structures
+  structures.forEach(s=>{
+    const sx=s.x-cx,sy=s.y-cy;
+    if(sx<-50||sx>canvas.width+50||sy<-50||sy>canvas.height+50)return;
+    if(s.type==='campfire'){
+      ctx.fillStyle='#553311';ctx.beginPath();ctx.arc(sx,sy,10,0,Math.PI*2);ctx.fill();
+      // Fire glow
+      const flicker=.8+Math.random()*.4;
+      const grad=ctx.createRadialGradient(sx,sy-5,2,sx,sy-5,12*flicker);
+      grad.addColorStop(0,'rgba(255,200,50,.9)');grad.addColorStop(.5,'rgba(255,100,20,.4)');grad.addColorStop(1,'rgba(255,50,10,0)');
+      ctx.fillStyle=grad;ctx.fillRect(sx-15,sy-20,30,25);
+      // Light radius
+      if(nightAlpha>.1){
+        const lg=ctx.createRadialGradient(sx,sy,10,sx,sy,120);
+        lg.addColorStop(0,'rgba(255,180,50,.15)');lg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=lg;ctx.beginPath();ctx.arc(sx,sy,120,0,Math.PI*2);ctx.fill();
+      }
+    }else if(s.type==='wall'){
+      ctx.fillStyle='#6a4a2a';ctx.fillRect(sx-15,sy-6,30,12);
+      ctx.fillStyle='#7a5a3a';ctx.fillRect(sx-14,sy-5,28,10);
+      ctx.strokeStyle='#4a3a1a';ctx.lineWidth=1;ctx.strokeRect(sx-15,sy-6,30,12);
+    }
+  });
+
+  // Drops
+  drops.forEach(d=>{
+    const sx=d.x-cx,sy=d.y-cy;
+    if(sx<-30||sx>canvas.width+30||sy<-30||sy>canvas.height+30)return;
+    ctx.font='14px serif';ctx.textAlign='center';
+    if(ITEMS[d.id].tint){
+      ctx.fillStyle=ITEMS[d.id].tint;ctx.beginPath();ctx.arc(sx,sy,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='8px sans-serif';ctx.fillText('燧',sx,sy+3);
+    }else{ctx.fillText(ITEMS[d.id].icon,sx,sy+5);}
+  });
+
+  // Mobs
+  mobs.forEach(m=>{
+    if(m.hp<=0)return;
+    const sx=m.x-cx,sy=m.y-cy;
+    if(sx<-50||sx>canvas.width+50||sy<-50||sy>canvas.height+50)return;
+    if(m.type==='spider'){
+      ctx.fillStyle='#222';ctx.beginPath();ctx.arc(sx,sy,10,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#333';ctx.beginPath();ctx.arc(sx,sy-4,7,0,Math.PI*2);ctx.fill();
+      // Eyes
+      ctx.fillStyle='#ff2222';ctx.beginPath();ctx.arc(sx-3,sy-6,2,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(sx+3,sy-6,2,0,Math.PI*2);ctx.fill();
+      // Legs
+      ctx.strokeStyle='#222';ctx.lineWidth=1.5;
+      for(let li=0;li<4;li++){const a=-1+li*.5;ctx.beginPath();ctx.moveTo(sx-8,sy);ctx.lineTo(sx-14-li*2,sy-8+li*4);ctx.stroke();ctx.beginPath();ctx.moveTo(sx+8,sy);ctx.lineTo(sx+14+li*2,sy-8+li*4);ctx.stroke();}
+    }else if(m.type==='hound'){
+      ctx.fillStyle='#4a3a2a';ctx.beginPath();ctx.ellipse(sx,sy,14,9,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#5a4a3a';ctx.beginPath();ctx.arc(sx-10,sy-4,7,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ff3333';ctx.beginPath();ctx.arc(sx-13,sy-6,2,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(sx-8,sy-6,2,0,Math.PI*2);ctx.fill();
+    }
+    // HP bar
+    if(m.hp<m.maxHp){
+      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(sx-12,sy-18,24,4);
+      ctx.fillStyle='#ff4444';ctx.fillRect(sx-12,sy-18,24*(m.hp/m.maxHp),4);
+    }
+  });
+
+  // Player
+  const px=canvas.width/2,py=canvas.height/2;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(px+1,py+10,10,6,0,0,Math.PI*2);ctx.fill();
+  // Body
+  ctx.fillStyle='#cc9966';ctx.beginPath();ctx.arc(px,py,12,0,Math.PI*2);ctx.fill();
+  // Eyes
+  const ex=Math.cos(player.dir)*4,ey=Math.sin(player.dir)*4;
+  ctx.fillStyle='#222';ctx.beginPath();ctx.arc(px+ex-2,py+ey-3,2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(px+ex+2,py+ey-3,2,0,Math.PI*2);ctx.fill();
+  // Equipped item
+  const eq=inventory[player.equipped];
+  if(eq){
+    const ix=px+Math.cos(player.dir)*16,iy=py+Math.sin(player.dir)*16;
+    ctx.font='16px serif';ctx.textAlign='center';ctx.fillText(ITEMS[eq.id].icon,ix,iy+5);
+  }
+  // Torch glow
+  if(eq&&ITEMS[eq.id].light&&nightAlpha>.1){
+    const lg=ctx.createRadialGradient(px,py,10,px,py,100);
+    lg.addColorStop(0,'rgba(255,180,50,.12)');lg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=lg;ctx.beginPath();ctx.arc(px,py,100,0,Math.PI*2);ctx.fill();
+  }
+
+  // Night overlay
+  if(nightAlpha>0){
+    ctx.fillStyle=`rgba(0,0,20,${nightAlpha*.7})`;ctx.fillRect(0,0,canvas.width,canvas.height);
+    // Player light
+    const plg=ctx.createRadialGradient(px,py,5,px,py,80);
+    plg.addColorStop(0,`rgba(0,0,20,0)`);plg.addColorStop(1,`rgba(0,0,0,0)`);
+  }
+}
+
+// ═══════ UI ═══════
+function renderInv(){
+  const g=document.getElementById('invGrid');g.innerHTML='';
+  for(let i=0;i<8;i++){
+    const d=document.createElement('div');d.className='inv-slot'+(i===player.equipped?' active':'');
+    const s=inventory[i];
+    if(s){d.innerHTML=`<span>${ITEMS[s.id].icon}</span><span class="nm">${ITEMS[s.id].name}</span>${s.qty>1?'<span class="qty">'+s.qty+'</span>':''}`;}
+    d.onclick=()=>{player.equipped=i;renderInv();};
+    g.appendChild(d);
+  }
+}
+function renderCraft(){
+  const cl=document.getElementById('craftList');cl.innerHTML='';
+  RECIPES.forEach(r=>{
+    const ok=canCraft(r);
+    const d=document.createElement('div');d.className='craft-row'+(ok?'':' disabled');
+    let cost='';for(const k in r.cost)cost+=ITEMS[k].icon+r.cost[k]+' ';
+    d.innerHTML=`<span>${r.name}</span><span style="margin-left:auto;font-size:9px">${cost}</span>`;
+    if(ok)d.onclick=()=>craft(r);
+    cl.appendChild(d);
+  });
+}
+let craftOpen=false;
+function toggleCraft(){craftOpen=!craftOpen;document.getElementById('craft').style.display=craftOpen?'block':'none';if(craftOpen)renderCraft();}
+function showMsg(t){const m=document.getElementById('msg');m.textContent=t;m.style.opacity='1';setTimeout(()=>m.style.opacity='0',1500);}
+function updateHUD(){
+  document.getElementById('hpFill').style.width=player.hp+'%';
+  document.querySelector('.bar-hp .bar-label').textContent='❤ '+Math.ceil(player.hp);
+  document.getElementById('foodFill').style.width=player.food+'%';
+  document.querySelector('.bar-food .bar-label').textContent='🍖 '+Math.ceil(player.food);
+  document.getElementById('sanFill').style.width=player.sanity+'%';
+  document.querySelector('.bar-san .bar-label').textContent='🧠 '+Math.ceil(player.sanity);
+  const isNight=nightAlpha>.3;
+  document.getElementById('dayTime').textContent=(isNight?'🌙 夜晚':'☀ 白天')+' 第'+day+'天';
+}
+
+// ═══════ INPUT ═══════
+document.addEventListener('keydown',e=>{K[e.code]=true;
+  if(e.code==='KeyE')toggleCraft();
+  for(let i=1;i<=8;i++)if(e.code==='Digit'+i){player.equipped=i-1;renderInv();}
+});
+document.addEventListener('keyup',e=>{K[e.code]=false;});
+document.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY;
+  player.dir=Math.atan2(mouseY-canvas.height/2,mouseX-canvas.width/2);
+});
+document.addEventListener('mousedown',e=>{mouseDown=true;doAction();});
+document.addEventListener('mouseup',()=>{mouseDown=false;});
+
+// ═══════ ACTIONS ═══════
+let actionCD=0;
+function doAction(){
+  if(actionCD>0)return;actionCD=.4;
+  const eq=inventory[player.equipped];
+  const eqId=eq?eq.id:null;
+  const range=40;
+  const tx=player.x+Math.cos(player.dir)*range;
+  const ty=player.y+Math.sin(player.dir)*range;
+
+  // Hit world objects
+  for(let i=worldObjects.length-1;i>=0;i--){
+    const o=worldObjects[i];
+    const d=Math.hypot(o.x-tx,o.y-ty);
+    if(d<o.r+10){
+      if(o.type==='tree'){
+        const pwr=eqId==='axe'?2:1;o.hp-=pwr;
+        if(o.hp<=0){drops.push({id:'log',x:o.x,y:o.y,qty:eqId==='axe'?3:1});worldObjects.splice(i,1);}
+        return;
+      }else if(o.type==='rock'){
+        const pwr=eqId==='pickaxe'?2:1;o.hp-=pwr;
+        if(o.hp<=0){drops.push({id:'stone',x:o.x,y:o.y,qty:eqId==='pickaxe'?3:1});if(Math.random()<.4)drops.push({id:'flint',x:o.x+5,y:o.y+5,qty:1});worldObjects.splice(i,1);}
+        return;
+      }else if(o.type==='bush'&&o.hasBerry){
+        o.hasBerry=false;o.regrow=60;
+        drops.push({id:'berry',x:o.x,y:o.y,qty:2});return;
+      }else if(o.type==='grass'&&o.hasGrass){
+        o.hasGrass=false;o.regrow=45;
+        drops.push({id:'grass',x:o.x,y:o.y,qty:2});return;
+      }
+    }
+  }
+  // Attack mobs
+  const dmg=eqId==='spear'?20:5;
+  for(const m of mobs){
+    if(m.hp<=0)continue;
+    const d=Math.hypot(m.x-tx,m.y-ty);
+    if(d<20){m.hp-=dmg;m.aggro=true;if(m.hp<=0){drops.push({id:'meat',x:m.x,y:m.y,qty:1});if(Math.random()<.3)drops.push({id:'flint',x:m.x+5,y:m.y,qty:1});}return;}
+  }
+  // Place structures
+  if(eq&&ITEMS[eq.id].place){
+    structures.push({type:eq.id==='campfire'?'campfire':'wall',x:tx,y:ty,fuel:eq.id==='campfire'?120:0});
+    invRemove(eq.id,1);renderInv();return;
+  }
+  // Eat food
+  if(eq&&ITEMS[eq.id].food){
+    player.food=Math.min(100,player.food+ITEMS[eq.id].food);
+    if(ITEMS[eq.id].hp)player.hp=Math.min(100,player.hp+ITEMS[eq.id].hp);
+    invRemove(eq.id,1);renderInv();showMsg('吃了 '+ITEMS[eq.id].icon);return;
+  }
+}
+
+// ═══════ MOB SPAWNING ═══════
+function spawnMobs(){
+  if(nightAlpha<.3)return;
+  if(mobs.filter(m=>m.hp>0).length>8)return;
+  const a=Math.random()*Math.PI*2;
+  const d=300+Math.random()*200;
+  const mx=player.x+Math.cos(a)*d,my=player.y+Math.sin(a)*d;
+  if(mx<50||mx>WORLD-50||my<50||my>WORLD-50)return;
+  const type=Math.random()>.5?'spider':'hound';
+  const hp=type==='spider'?30:50;
+  mobs.push({type,x:mx,y:my,hp,maxHp:hp,speed:type==='spider'?1.5:2.5,dmg:type==='spider'?8:15,aggro:false,atkCD:0});
+}
+
+// ═══════ GAME LOOP ═══════
+let lastTime=0;
+function startGame(){
+  state='playing';
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hud').style.display='block';
+  document.getElementById('dayTime').style.display='block';
+  document.getElementById('inv').style.display='block';
+  genWorld();renderInv();
+  invAdd('flint',3);invAdd('grass',4);renderInv();
+  showMsg('收集资源，活下去!');
+}
+
+function loop(time){
+  requestAnimationFrame(loop);
+  const dt=Math.min((time-lastTime)/1000,.05);lastTime=time;
+  if(state!=='playing'){
+    if(state==='menu'){ctx.fillStyle='#2a3a1a';ctx.fillRect(0,0,canvas.width,canvas.height);}
+    return;
+  }
+
+  // Day/night
+  dayTime+=dt;
+  const dayProgress=(dayTime%DAY_LENGTH)/DAY_LENGTH;
+  if(dayProgress<.4)nightAlpha=0; // day
+  else if(dayProgress<.5)nightAlpha=(dayProgress-.4)/.1; // dusk
+  else if(dayProgress<.85)nightAlpha=1; // night
+  else nightAlpha=1-(dayProgress-.85)/.15; // dawn
+  if(dayTime>DAY_LENGTH){dayTime-=DAY_LENGTH;day++;showMsg('第 '+day+' 天');}
+
+  // Movement
+  let mx=0,my=0;
+  if(K['KeyW'])my=-1;if(K['KeyS'])my=1;if(K['KeyA'])mx=-1;if(K['KeyD'])mx=1;
+  if(mx||my){const l=Math.hypot(mx,my);player.x+=mx/l*player.speed;player.y+=my/l*player.speed;}
+  player.x=Math.max(20,Math.min(WORLD-20,player.x));
+  player.y=Math.max(20,Math.min(WORLD-20,player.y));
+
+  // Pickup drops
+  for(let i=drops.length-1;i>=0;i--){
+    const d=drops[i];
+    if(Math.hypot(d.x-player.x,d.y-player.y)<45){
+      if(invAdd(d.id,d.qty)){drops.splice(i,1);renderInv();}
+    }
+  }
+
+  // Survival
+  player.food-=dt*.8;
+  if(nightAlpha>.5&&!nearLight())player.sanity-=dt*2;
+  if(player.food<=0){player.food=0;player.hp-=dt*5;}
+  if(player.sanity<=0)player.sanity=0;
+  if(player.food>50&&player.hp<100)player.hp+=dt;
+
+  // Regrow
+  worldObjects.forEach(o=>{
+    if(o.regrow>0){o.regrow-=dt;if(o.regrow<=0){if(o.type==='bush')o.hasBerry=true;if(o.type==='grass')o.hasGrass=true;}}
+  });
+
+  // Mobs
+  if(Math.random()<dt*.3)spawnMobs();
+  actionCD-=dt;
+  mobs.forEach(m=>{
+    if(m.hp<=0)return;
+    const dx=player.x-m.x,dy=player.y-m.y;
+    const dist=Math.hypot(dx,dy);
+    // Aggro at night or if hit
+    if(nightAlpha>.3||m.aggro){
+      if(dist<300){
+        m.x+=dx/dist*m.speed;m.y+=dy/dist*m.speed;
+        // Attack
+        if(dist<20){
+          m.atkCD-=dt;
+          if(m.atkCD<=0){player.hp-=m.dmg;m.atkCD=1.5;showMsg('-'+m.dmg+' HP!');}
+        }
+      }
+    }
+  });
+
+  // Death
+  if(player.hp<=0){
+    state='dead';
+    document.getElementById('deathScreen').style.display='flex';
+    document.getElementById('deathDays').textContent='存活: '+day+'天';
+    document.getElementById('deathMsg').textContent=player.food<=0?'饿死了...':'被怪物杀了...';
+  }
+
+  // Cook meat on campfire
+  structures.forEach(s=>{
+    if(s.type==='campfire'){
+      s.fuel-=dt;
+      const pd=Math.hypot(s.x-player.x,s.y-player.y);
+      if(pd<40&&invCount('meat')>0){
+        if(!s._cookT)s._cookT=0;
+        s._cookT+=dt;
+        if(s._cookT>3){s._cookT=0;invRemove('meat',1);invAdd('cookedMeat',1);renderInv();showMsg('烤好了肉!');}
+      }
+    }
+  });
+
+  updateHUD();
+  drawWorld();
+}
+
+function nearLight(){
+  // Check campfire or torch
+  const eq=inventory[player.equipped];
+  if(eq&&ITEMS[eq.id].light)return true;
+  for(const s of structures){
+    if(s.type==='campfire'&&s.fuel>0&&Math.hypot(s.x-player.x,s.y-player.y)<100)return true;
+  }
+  return false;
+}
+
+requestAnimationFrame(loop);
+</script>
+</body></html>

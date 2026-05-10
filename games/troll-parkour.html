@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>超级老6跑酷</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif}
+#hud{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:10;display:none;text-align:center}
+#deaths{color:#ff4444;font-size:16px;font-weight:700;text-shadow:0 1px 4px #000}
+#lvl{color:#44ffaa;font-size:14px;text-shadow:0 1px 4px #000}
+#msg{position:fixed;top:35%;left:50%;transform:translateX(-50%);color:#fff;font-size:26px;font-weight:900;opacity:0;transition:opacity .3s;z-index:10;text-shadow:0 2px 10px #000;pointer-events:none;text-align:center}
+#troll{position:fixed;bottom:30%;left:50%;transform:translateX(-50%);color:#ffaa22;font-size:18px;font-weight:700;opacity:0;transition:opacity .3s;z-index:10;pointer-events:none}
+#overlay{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92)}
+#overlay h1{font-size:38px;color:#ffaa22;letter-spacing:4px}
+#overlay p{color:rgba(255,255,255,.4);font-size:11px;margin-top:6px}
+.pbtn{padding:14px 40px;font-size:18px;background:#aa6600;color:#fff;border:none;cursor:pointer;border-radius:6px;margin-top:16px;letter-spacing:2px}
+</style>
+</head><body>
+<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;border:1px solid rgba(255,255,255,.15);cursor:pointer">← 返回主页</a>
+<div id="hud"><div id="deaths">💀 0</div><div id="lvl">第1关</div></div>
+<div id="msg"></div>
+<div id="troll"></div>
+<div id="overlay">
+  <h1>超级老6跑酷</h1>
+  <p>WASD移动 | 空格跳跃 | V切换视角 | 鼠标视角</p>
+  <p>⚠️ 不要相信你看到的任何东西 ⚠️</p>
+  <button class="pbtn" onclick="start()">开始</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// === SCENE ===
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x88ccff);
+scene.fog=new THREE.Fog(0x88ccff,50,120);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,200);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=false;
+document.body.appendChild(renderer.domElement);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+scene.add(new THREE.AmbientLight(0x88aacc,.6));
+scene.add(new THREE.HemisphereLight(0x88bbff,0x445533,.4));
+const sun=new THREE.DirectionalLight(0xfff5e0,1);sun.position.set(20,30,10);scene.add(sun);
+
+// === MATERIALS ===
+const mSafe=new THREE.MeshLambertMaterial({color:0x44aa44});
+const mFake=new THREE.MeshLambertMaterial({color:0x44aa44});
+const mKill=new THREE.MeshLambertMaterial({color:0xcc2222});
+const mFinish=new THREE.MeshLambertMaterial({color:0x44ddff,emissive:0x114433});
+const mInvis=new THREE.MeshLambertMaterial({color:0x44aa44,transparent:true,opacity:0});
+const mBounce=new THREE.MeshLambertMaterial({color:0xff8822});
+const mIce=new THREE.MeshLambertMaterial({color:0xaaddff});
+
+// === PLAYER MODEL (风格化角色) ===
+const playerG=new THREE.Group();
+const skinM=new THREE.MeshLambertMaterial({color:0xd4a878});
+const shirtM=new THREE.MeshLambertMaterial({color:0x3366cc});
+const pantsM=new THREE.MeshLambertMaterial({color:0x2a2a3a});
+const shoeM=new THREE.MeshLambertMaterial({color:0xcc3333});
+const hairM=new THREE.MeshLambertMaterial({color:0x2a1a0a});
+const eyeM=new THREE.MeshBasicMaterial({color:0x222222});
+const whiteM=new THREE.MeshBasicMaterial({color:0xffffff});
+
+// 头(圆润)
+const head=new THREE.Mesh(new THREE.SphereGeometry(.22,14,12),skinM);
+head.position.y=1.72;head.scale.set(1,1.1,.95);playerG.add(head);
+// 头发
+const hair=new THREE.Mesh(new THREE.SphereGeometry(.23,12,10,0,Math.PI*2,0,Math.PI*.5),hairM);
+hair.position.y=1.78;playerG.add(hair);
+// 刘海
+const bangs=new THREE.Mesh(new THREE.BoxGeometry(.35,.06,.15),hairM);
+bangs.position.set(0,1.85,-.15);playerG.add(bangs);
+// 眼白
+const eyeLW=new THREE.Mesh(new THREE.SphereGeometry(.04,8,6),whiteM);
+eyeLW.position.set(-.08,1.72,-.2);playerG.add(eyeLW);
+const eyeRW=new THREE.Mesh(new THREE.SphereGeometry(.04,8,6),whiteM);
+eyeRW.position.set(.08,1.72,-.2);playerG.add(eyeRW);
+// 瞳孔
+const eyeL=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),eyeM);
+eyeL.position.set(-.08,1.72,-.23);playerG.add(eyeL);
+const eyeR=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),eyeM);
+eyeR.position.set(.08,1.72,-.23);playerG.add(eyeR);
+// 嘴
+const mouth=new THREE.Mesh(new THREE.BoxGeometry(.08,.02,.02),new THREE.MeshLambertMaterial({color:0x994444}));
+mouth.position.set(0,1.62,-.2);playerG.add(mouth);
+// 脖子
+const neck=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.1,8),skinM);
+neck.position.y=1.52;playerG.add(neck);
+// 身体(上衣)
+const torso=new THREE.Mesh(new THREE.BoxGeometry(.45,.55,.3),shirtM);
+torso.position.y=1.2;playerG.add(torso);
+// 衣领
+const collar=new THREE.Mesh(new THREE.BoxGeometry(.3,.06,.25),shirtM);
+collar.position.y=1.48;playerG.add(collar);
+// 肩膀
+const shouldL=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),shirtM);
+shouldL.position.set(-.28,1.42,0);playerG.add(shouldL);
+const shouldR=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),shirtM);
+shouldR.position.set(.28,1.42,0);playerG.add(shouldR);
+// 手臂
+const armLG=new THREE.Group();armLG.position.set(-.28,1.35,0);
+const armLU=new THREE.Mesh(new THREE.CylinderGeometry(.06,.055,.3,8),shirtM);armLG.add(armLU);
+const armLL=new THREE.Mesh(new THREE.CylinderGeometry(.05,.045,.25,8),skinM);armLL.position.y=-.25;armLG.add(armLL);
+const handL=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),skinM);handL.position.y=-.4;armLG.add(handL);
+playerG.add(armLG);
+const armRG=new THREE.Group();armRG.position.set(.28,1.35,0);
+const armRU=new THREE.Mesh(new THREE.CylinderGeometry(.06,.055,.3,8),shirtM);armRG.add(armRU);
+const armRL=new THREE.Mesh(new THREE.CylinderGeometry(.05,.045,.25,8),skinM);armRL.position.y=-.25;armRG.add(armRL);
+const handR=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),skinM);handR.position.y=-.4;armRG.add(handR);
+playerG.add(armRG);
+// 腰带
+const belt=new THREE.Mesh(new THREE.BoxGeometry(.46,.06,.31),new THREE.MeshLambertMaterial({color:0x443322}));
+belt.position.y=.93;playerG.add(belt);
+// 裤子
+const legLG=new THREE.Group();legLG.position.set(-.1,.7,0);
+const legLU=new THREE.Mesh(new THREE.CylinderGeometry(.08,.07,.35,8),pantsM);legLG.add(legLU);
+const legLL=new THREE.Mesh(new THREE.CylinderGeometry(.065,.06,.3,8),pantsM);legLL.position.y=-.3;legLG.add(legLL);
+playerG.add(legLG);
+const legRG=new THREE.Group();legRG.position.set(.1,.7,0);
+const legRU=new THREE.Mesh(new THREE.CylinderGeometry(.08,.07,.35,8),pantsM);legRG.add(legRU);
+const legRL=new THREE.Mesh(new THREE.CylinderGeometry(.065,.06,.3,8),pantsM);legRL.position.y=-.3;legRG.add(legRL);
+playerG.add(legRG);
+// 鞋子
+const shoeL=new THREE.Mesh(new THREE.BoxGeometry(.1,.08,.18),shoeM);
+shoeL.position.set(-.1,.32,.02);playerG.add(shoeL);
+const shoeR=new THREE.Mesh(new THREE.BoxGeometry(.1,.08,.18),shoeM);
+shoeR.position.set(.1,.32,.02);playerG.add(shoeR);
+// 鞋底
+const soleL=new THREE.Mesh(new THREE.BoxGeometry(.11,.03,.19),new THREE.MeshLambertMaterial({color:0xffffff}));
+soleL.position.set(-.1,.29,.02);playerG.add(soleL);
+const soleR=new THREE.Mesh(new THREE.BoxGeometry(.11,.03,.19),new THREE.MeshLambertMaterial({color:0xffffff}));
+soleR.position.set(.1,.29,.02);playerG.add(soleR);
+
+playerG.castShadow=true;
+scene.add(playerG);
+
+// === STATE ===
+let state='menu';
+const pos=new THREE.Vector3(0,2,0);
+let yaw=Math.PI,pitch=0,vy=0,grounded=false;
+let deaths=0,currentLevel=1,firstPerson=false;
+let pointerLocked=false;
+const K={};
+const platforms=[];
+
+// === TROLL ===
+const trolls=['你上当了!','哈哈哈哈','这也信?','老6就是你','太天真了','再来再来','意不意外?','6不6?'];
+const deathMsgs=['💀 啊这...','💀 哈哈哈','💀 又来?','💀 这都能死?','💀 老6赢了'];
+function showMsg(t,d){const m=document.getElementById('msg');m.innerHTML=t;m.style.opacity='1';setTimeout(()=>m.style.opacity='0',d||2000);}
+function showTroll(t){const m=document.getElementById('troll');m.textContent=t;m.style.opacity='1';setTimeout(()=>m.style.opacity='0',1500);}
+
+// === INPUT (跟parkour一样的方式) ===
+document.addEventListener('keydown',e=>{
+  K[e.code]=true;
+  if(state!=='playing')return;
+  if(e.code==='Space'&&grounded){vy=9;grounded=false;}
+  if(e.code==='KeyV'){firstPerson=!firstPerson;playerG.visible=!firstPerson;}
+});
+document.addEventListener('keyup',e=>{K[e.code]=false;});
+document.addEventListener('mousemove',e=>{
+  if(state!=='playing')return;
+  if(pointerLocked){yaw-=e.movementX*.001;pitch-=e.movementY*.001;}
+  pitch=Math.max(-1.2,Math.min(1.2,pitch));
+});
+document.addEventListener('mousedown',()=>{
+  if(state==='playing'&&!pointerLocked)try{renderer.domElement.requestPointerLock();}catch(ex){}
+});
+document.addEventListener('pointerlockchange',()=>{pointerLocked=!!document.pointerLockElement;document.body.style.cursor=pointerLocked?'none':'default';});
+
+// === PLATFORM BUILDER ===
+function clearLevel(){platforms.forEach(p=>scene.remove(p.mesh));platforms.length=0;}
+
+function addP(x,y,z,w,h,d,mat,type){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat||mSafe);
+  m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
+  platforms.push({mesh:m,x,y,z,w,h,d,type:type||'solid',fallen:false,timer:0});
+}
+
+// === LEVELS ===
+function buildLevel(n){
+  clearLevel();
+  pos.set(0,2,0);vy=0;yaw=0;pitch=0;
+  if(n===1){
+    showMsg('第1关<br><span style="font-size:14px">看起来很简单...</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-7,5,.5,5,mSafe);
+    addP(0,0,-14,5,.5,5,mFake,'fake');
+    addP(0,-1,-14,5,.5,5,mInvis,'solid');
+    addP(0,0,-21,6,.5,6,mFinish,'kill'); // 假终点，终点颜色但踩上去死
+    // 真终点在出生点后面，隐形的
+    addP(0,0,14,5,.5,5,mInvis,'finish');
+  }else if(n===2){
+    showMsg('第2关<br><span style="font-size:14px">终点在哪?</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-7,5,.5,5,mSafe);
+    addP(0,0,-14,5,.5,5,mSafe);
+    addP(0,0,-21,6,.5,6,mKill,'kill');
+    addP(0,0,14,6,.5,6,mFinish,'finish');
+  }else if(n===3){
+    showMsg('第3关<br><span style="font-size:14px">弹弹弹~</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-7,5,.5,5,mBounce,'bounce');
+    addP(0,6,-14,5,.5,5,mSafe);
+    addP(0,6,-21,5,.5,5,mBounce,'bounce');
+    addP(0,12,-28,6,.5,6,mFinish,'finish');
+  }else if(n===4){
+    showMsg('第4关<br><span style="font-size:14px">好滑!</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-7,10,.5,5,mIce,'ice');
+    addP(0,0,-14,10,.5,5,mIce,'ice');
+    addP(6,0,-20,5,.5,5,mSafe);
+    addP(6,0,-27,6,.5,6,mFinish,'finish');
+  }else if(n===5){
+    showMsg('第5关<br><span style="font-size:14px">看不见≠不存在</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-7,4,.5,4,mInvis,'solid');
+    addP(2,0,-14,4,.5,4,mInvis,'solid');
+    addP(-1,0,-21,4,.5,4,mInvis,'solid');
+    addP(0,0,-28,6,.5,6,mFinish,'finish');
+    addP(-4,0,-7,4,.5,4,mSafe,'fake');
+    addP(-4,0,-14,4,.5,4,mSafe,'fake');
+  }else if(n===6){
+    showMsg('第6关<br><span style="font-size:14px">快跑!平台在缩小!</span>');
+    addP(0,0,0,7,.5,7,mSafe,'shrink');
+    addP(0,0,-12,6,.5,6,mSafe,'shrink');
+    addP(0,0,-24,5,.5,5,mSafe,'shrink');
+    addP(0,0,-36,6,.5,6,mFinish,'finish');
+  }else if(n===7){
+    showMsg('第7关<br><span style="font-size:14px">哪个终点是真的?</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-10,5,.5,5,mSafe);
+    addP(-6,0,-20,5,.5,5,mFinish,'kill');
+    addP(6,0,-20,5,.5,5,mFinish,'kill');
+    addP(0,0,-20,4,.5,4,mSafe);
+    addP(0,3,-30,6,.5,6,mFinish,'finish');
+  }else if(n===8){
+    showMsg('第8关<br><span style="font-size:14px">动来动去...</span>');
+    addP(0,0,0,6,.5,6,mSafe);
+    addP(0,0,-12,5,.5,5,mSafe,'moveX');
+    addP(0,0,-24,5,.5,5,mSafe,'moveX');
+    addP(0,0,-36,5,.5,5,mSafe,'moveY');
+    addP(0,0,-48,6,.5,6,mFinish,'finish');
+  }else{
+    showMsg('🎉 通关! 死了'+deaths+'次',5000);
+    addP(0,0,0,12,.5,12,mFinish);
+  }
+  document.getElementById('lvl').textContent='第'+n+'关';
+}
+
+// === COLLISION ===
+function checkPlats(){
+  grounded=false;
+  for(const p of platforms){
+    if(p.fallen)continue;
+    const m=p.mesh;
+    const dx=Math.abs(pos.x-m.position.x),dz=Math.abs(pos.z-m.position.z);
+    const top=m.position.y+p.h/2;
+    if(dx<p.w/2&&dz<p.d/2){
+      // 站在上面
+      if(pos.y>=top-.1&&pos.y<=top+.5&&vy<=0){
+        if(p.type==='fake'){p.fallen=true;p.timer=.3;showTroll(trolls[Math.floor(Math.random()*trolls.length)]);continue;}
+        if(p.type==='kill'){die();return;}
+        if(p.type==='finish'&&!window._finishing){window._finishing=true;currentLevel++;showMsg('✅ 过关!');setTimeout(()=>{window._finishing=false;buildLevel(currentLevel);},1500);return;}
+        if(p.type==='bounce'){vy=16;showTroll('弹~');continue;}
+        if(!grounded){pos.y=top+.01;}
+        vy=0;grounded=true;
+      }
+    }
+  }
+}
+
+function die(){
+  deaths++;
+  document.getElementById('deaths').textContent='💀 '+deaths;
+  showMsg(deathMsgs[Math.floor(Math.random()*deathMsgs.length)]);
+  setTimeout(()=>{
+    pos.set(0,2,0);vy=0;
+    platforms.forEach(p=>{p.fallen=false;p.timer=0;if(p.type==='fake')p.mesh.position.y=p.y;if(p.type==='shrink')p.mesh.scale.set(1,1,1);});
+  },800);
+}
+
+// === START ===
+function start(){
+  state='playing';
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hud').style.display='block';
+  clock.getDelta(); // 消耗累积时间
+  buildLevel(1);
+  showMsg('点击屏幕锁定鼠标',2000);
+}
+
+// === GAME LOOP (跟parkour完全一样) ===
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.04);
+  if(state!=='playing'){renderer.render(scene,camera);return;}
+
+  // 移动
+  const moveSpeed=3;
+  const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  const mv=new THREE.Vector3();
+  if(K['KeyW'])mv.add(fwd);if(K['KeyS'])mv.sub(fwd);
+  if(K['KeyD'])mv.add(right);if(K['KeyA'])mv.sub(right);
+  if(mv.length()>0){
+    mv.normalize().multiplyScalar(moveSpeed*dt);
+    // 限制每帧最大移动0.15米
+    if(mv.length()>.15)mv.setLength(.15);
+    pos.x+=mv.x;pos.z+=mv.z;
+  }
+
+  // 重力(限制最大下落速度)
+  vy-=20*dt;
+  if(vy<-15)vy=-15;
+  const dy=vy*dt;
+  if(Math.abs(dy)>.3)pos.y+=Math.sign(dy)*.3;
+  else pos.y+=dy;
+
+  // 碰撞
+  checkPlats();
+
+  // 掉落死亡
+  if(pos.y<-15)die();
+
+  // 假平台下落
+  platforms.forEach(p=>{
+    if(p.type==='fake'&&p.fallen){p.timer-=dt;if(p.timer<=0)p.mesh.position.y-=dt*10;}
+    if(p.type==='shrink'&&!p.fallen){const s=p.mesh.scale.x;if(s>.1)p.mesh.scale.set(s-dt*.1,1,s-dt*.1);else p.fallen=true;}
+    if(p.type==='moveX')p.mesh.position.x=p.x+Math.sin(Date.now()*.002)*3;
+    if(p.type==='moveY')p.mesh.position.y=p.y+Math.sin(Date.now()*.003)*2;
+  });
+
+  // 玩家模型(平滑跟随，不瞬移)
+  playerG.position.lerp(pos,.3);
+  playerG.rotation.y=yaw;
+  if(grounded&&(K['KeyW']||K['KeyS']||K['KeyA']||K['KeyD'])){
+    runPhase+=dt*12;
+    const sw=Math.sin(runPhase)*.5;
+    legLG.rotation.x=sw;legRG.rotation.x=-sw;
+    armLG.rotation.x=-sw*.7;armRG.rotation.x=sw*.7;
+  }else{
+    legLG.rotation.x*=.85;legRG.rotation.x*=.85;
+    armLG.rotation.x*=.85;armRG.rotation.x*=.85;
+  }
+
+  // 摄像机
+  // 摄像机(平滑跟随)
+  const px=playerG.position.x,py=playerG.position.y,pz=playerG.position.z;
+  if(firstPerson){
+    camera.position.set(px,py+1.5,pz);
+    camera.rotation.set(0,0,0);camera.rotateY(yaw);camera.rotateX(pitch);
+  }else{
+    const cd=5,ch=3-pitch*2;
+    const tx=px+Math.sin(yaw)*cd,tz=pz+Math.cos(yaw)*cd;
+    camera.position.lerp(new THREE.Vector3(tx,py+ch,tz),.15);
+    camera.lookAt(px,py+1+pitch*2,pz);
+  }
+
+  renderer.render(scene,camera);
+  document.title='x:'+pos.x.toFixed(1)+' y:'+pos.y.toFixed(1)+' z:'+pos.z.toFixed(1)+' dt:'+dt.toFixed(3);
+}
+animate();
+</script>
+</body></html>

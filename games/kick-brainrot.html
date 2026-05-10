@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>踢飞脑残</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif}
+#hud{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:10;display:none;text-align:center}
+#score{color:#fff;font-size:28px;font-weight:900;text-shadow:0 2px 8px #000}
+#kickPower{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:200px;height:12px;background:rgba(0,0,0,.5);border-radius:6px;border:1px solid rgba(255,255,255,.2);z-index:10;display:none}
+#kickFill{width:0%;height:100%;background:linear-gradient(90deg,#44ff44,#ffaa22,#ff4444);border-radius:5px;transition:width .05s}
+#kickLabel{position:fixed;bottom:35px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.5);font-size:10px;z-index:10;display:none}
+#flyText{position:fixed;top:35%;left:50%;transform:translateX(-50%);color:#ffaa22;font-size:42px;font-weight:900;opacity:0;transition:opacity .2s;z-index:10;pointer-events:none;text-shadow:0 0 20px rgba(255,170,0,.6)}
+#brainrotName{position:fixed;top:55%;left:50%;transform:translateX(-50%);color:#ff4488;font-size:18px;font-weight:700;opacity:0;transition:opacity .2s;z-index:10;pointer-events:none}
+#totalKicks{color:#44ffaa;font-size:14px;text-shadow:0 1px 4px #000}
+#bestKick{color:#ffdd44;font-size:14px;text-shadow:0 1px 4px #000}
+#overlay{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92)}
+#overlay h1{font-size:38px;color:#ff4488;letter-spacing:4px}
+#overlay .sub{color:#aa2266;font-size:13px;letter-spacing:3px;margin-top:4px}
+#overlay p{color:rgba(255,255,255,.4);font-size:11px;margin-top:6px}
+.pbtn{padding:14px 40px;font-size:18px;background:#cc2266;color:#fff;border:none;cursor:pointer;border-radius:6px;margin-top:16px;letter-spacing:2px}
+.pbtn:hover{background:#ee3388}
+</style>
+</head><body>
+<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,.7);color:#fff;padding:6px 14px;border-radius:4px;font-size:12px;text-decoration:none;border:1px solid rgba(255,255,255,.15);cursor:pointer">← 返回</a>
+<div id="hud">
+  <div id="score">0 分</div>
+  <div id="totalKicks">踢飞: 0</div>
+  <div id="bestKick">最远: 0m</div>
+</div>
+<div id="kickPower"><div id="kickFill"></div></div>
+<div id="kickLabel">按住左键蓄力 松开踢飞!</div>
+<div id="flyText"></div>
+<div id="brainrotName"></div>
+<div id="overlay">
+  <h1>踢飞脑残</h1>
+  <div class="sub">KICK A BRAINROT</div>
+  <p>WASD移动 | 鼠标视角 | 按住左键蓄力踢飞!</p>
+  <p>把脑残们踢得越远越好!</p>
+  <button class="pbtn" onclick="startGame()">开踢!</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let state='menu';
+function ap(parent,mesh,x,y,z){mesh.position.set(x||0,y||0,z||0);parent.add(mesh);return mesh;}
+if(typeof THREE==='undefined'){
+  document.getElementById('overlay').innerHTML='<h1 style="color:red">Three.js加载失败</h1><p style="color:#fff">请检查网络连接后刷新</p>';
+  throw new Error('Three.js not loaded');
+}
+</script>
+<script>
+// ═══ SCENE ═══
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x66aadd);
+scene.fog=new THREE.Fog(0x66aadd,40,120);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,200);
+const ren=new THREE.WebGLRenderer({antialias:true});
+ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,2));
+ren.shadowMap.enabled=true;
+document.body.appendChild(ren.domElement);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
+
+scene.add(new THREE.AmbientLight(0x88aacc,.5));
+scene.add(new THREE.HemisphereLight(0x88bbff,0x445533,.5));
+const sun=new THREE.DirectionalLight(0xfff5e0,1.2);sun.position.set(20,30,10);sun.castShadow=true;scene.add(sun);
+
+// ═══ GROUND ═══
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshLambertMaterial({color:0x55aa44}));
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+// Grid
+for(let i=-50;i<=50;i+=5){
+  const l=new THREE.Mesh(new THREE.BoxGeometry(.05,.01,100),new THREE.MeshBasicMaterial({color:0x449933}));
+  l.position.set(i,.01,0);scene.add(l);
+  const l2=l.clone();l2.rotation.y=Math.PI/2;l2.position.set(0,.01,i);scene.add(l2);
+}
+// Distance markers
+for(let d=10;d<=80;d+=10){
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(d,.1,6,32),new THREE.MeshBasicMaterial({color:0x449933}));
+  ring.rotation.x=Math.PI/2;ring.position.y=.02;scene.add(ring);
+}
+
+// ═══ BRAINROT TYPES ═══
+const BRAINROTS=[
+  {name:'马桶头',headColor:0xdddddd,bodyColor:0x4444aa,headType:'toilet',scale:1},
+  {name:'相机人',headColor:0x222222,bodyColor:0x333333,headType:'camera',scale:1.1},
+  {name:'电视头',headColor:0x111111,bodyColor:0x555555,headType:'tv',scale:1},
+  {name:'Sigma脸',headColor:0xddaa77,bodyColor:0x222222,headType:'sigma',scale:.9},
+  {name:'Ohio怪',headColor:0xcc4444,bodyColor:0x884422,headType:'ohio',scale:1.2},
+  {name:'Rizz王',headColor:0xffcc88,bodyColor:0xff44aa,headType:'rizz',scale:.85},
+  {name:'Skibidi舞王',headColor:0xdddddd,bodyColor:0x4488cc,headType:'skibidi',scale:1},
+  {name:'Gyatt巨人',headColor:0xaa6644,bodyColor:0x664422,headType:'gyatt',scale:1.5},
+];
+
+function buildBrainrot(type){
+  const g=new THREE.Group();
+  const t=BRAINROTS[type];
+  const s=t.scale;
+  const bodyM=new THREE.MeshLambertMaterial({color:t.bodyColor});
+  const headM=new THREE.MeshLambertMaterial({color:t.headColor});
+  const eyeM=new THREE.MeshBasicMaterial({color:0xff0000});
+
+  // Body
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.5*s,.7*s,.35*s),bodyM);
+  body.position.y=.9*s;g.add(body);
+  // Legs
+  const legL=new THREE.Mesh(new THREE.BoxGeometry(.18*s,.5*s,.18*s),bodyM);
+  legL.position.set(-.12*s,.3*s,0);g.add(legL);
+  const legR=legL.clone();legR.position.x=.12*s;g.add(legR);
+  // Arms
+  const armL=new THREE.Mesh(new THREE.BoxGeometry(.15*s,.5*s,.15*s),bodyM);
+  armL.position.set(-.35*s,.9*s,0);g.add(armL);
+  const armR=armL.clone();armR.position.x=.35*s;g.add(armR);
+
+  // Head (different per type)
+  if(t.headType==='toilet'){
+    // 马桶头
+    const bowl=new THREE.Mesh(new THREE.CylinderGeometry(.25*s,.2*s,.3*s,10),headM);
+    bowl.position.y=1.5*s;g.add(bowl);
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(.45*s,.05*s,.35*s),headM);
+    lid.position.set(0,1.68*s,-.05*s);lid.rotation.x=-.3;g.add(lid);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(.22*s,.03*s,6,10),headM);
+    rim.position.y=1.65*s;rim.rotation.x=Math.PI/2;g.add(rim);
+    // Eyes in bowl
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.04*s,6,4),eyeM);_m.position.set(-.08*s,1.55*s,-.2*s);return _m;}()));
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.04*s,6,4),eyeM);_m.position.set(.08*s,1.55*s,-.2*s);return _m;}()));
+  }else if(t.headType==='camera'){
+    // 相机头
+    const cam=new THREE.Mesh(new THREE.BoxGeometry(.35*s,.25*s,.3*s),headM);
+    cam.position.y=1.5*s;g.add(cam);
+    const lens=new THREE.Mesh(new THREE.CylinderGeometry(.1*s,.1*s,.15*s,10),new THREE.MeshLambertMaterial({color:0x444466}));
+    lens.position.set(0,1.5*s,-.22*s);lens.rotation.x=Math.PI/2;g.add(lens);
+    const lensGlass=new THREE.Mesh(new THREE.CircleGeometry(.08*s,10),new THREE.MeshBasicMaterial({color:0x2244aa}));
+    lensGlass.position.set(0,1.5*s,-.3*s);g.add(lensGlass);
+  }else if(t.headType==='tv'){
+    // 电视头
+    const tv=new THREE.Mesh(new THREE.BoxGeometry(.4*s,.3*s,.2*s),headM);
+    tv.position.y=1.5*s;g.add(tv);
+    const screen=new THREE.Mesh(new THREE.BoxGeometry(.35*s,.25*s,.01*s),new THREE.MeshBasicMaterial({color:0x2244ff}));
+    screen.position.set(0,1.5*s,-.11*s);g.add(screen);
+    // Static noise eyes
+    ap(g,new THREE.Mesh(new THREE.BoxGeometry(.06*s,.06*s,.01*s),new THREE.MeshBasicMaterial({color:0xff0000})),-.08*s,1.52*s,-.12*s);
+    ap(g,new THREE.Mesh(new THREE.BoxGeometry(.06*s,.06*s,.01*s),new THREE.MeshBasicMaterial({color:0xff0000})),.08*s,1.52*s,-.12*s);
+  }else if(t.headType==='sigma'){
+    const head2=new THREE.Mesh(new THREE.SphereGeometry(.22*s,10,8),headM);
+    head2.position.y=1.55*s;g.add(head2);
+    // Sunglasses
+    const glasses=new THREE.Mesh(new THREE.BoxGeometry(.4*s,.08*s,.05*s),new THREE.MeshBasicMaterial({color:0x111111}));
+    glasses.position.set(0,1.58*s,-.2*s);g.add(glasses);
+    // Smirk
+    const smirk=new THREE.Mesh(new THREE.BoxGeometry(.1*s,.02*s,.02*s),new THREE.MeshBasicMaterial({color:0x884444}));
+    smirk.position.set(.03*s,1.45*s,-.2*s);smirk.rotation.z=.2;g.add(smirk);
+  }else if(t.headType==='ohio'){
+    const head2=new THREE.Mesh(new THREE.SphereGeometry(.28*s,10,8),headM);
+    head2.scale.set(1,1.2,1);head2.position.y=1.6*s;g.add(head2);
+    // Crazy eyes
+    ap(g,new THREE.Mesh(new THREE.SphereGeometry(.07*s,6,4),new THREE.MeshBasicMaterial({color:0xffffff})),-.1*s,1.65*s,-.22*s);
+    ap(g,new THREE.Mesh(new THREE.SphereGeometry(.07*s,6,4),new THREE.MeshBasicMaterial({color:0xffffff})),.1*s,1.65*s,-.22*s);
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.04*s,6,4),eyeM);_m.position.set(-.1*s,1.67*s,-.27*s);return _m;}()));
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.04*s,6,4),eyeM);_m.position.set(.12*s,1.63*s,-.27*s);return _m;}()));
+    // Open mouth
+    ap(g,new THREE.Mesh(new THREE.BoxGeometry(.15*s,.1*s,.05*s),new THREE.MeshBasicMaterial({color:0x220000})),0,1.48*s,-.23*s);
+  }else if(t.headType==='rizz'){
+    const head2=new THREE.Mesh(new THREE.SphereGeometry(.2*s,10,8),headM);
+    head2.position.y=1.52*s;g.add(head2);
+    // Cool hair
+    const hair=new THREE.Mesh(new THREE.BoxGeometry(.3*s,.08*s,.25*s),new THREE.MeshLambertMaterial({color:0x222222}));
+    hair.position.set(0,1.7*s,0);g.add(hair);
+    // Wink eye
+    ap(g,new THREE.Mesh(new THREE.SphereGeometry(.03*s,6,4),new THREE.MeshBasicMaterial({color:0x222222})),-.07*s,1.55*s,-.18*s);
+    const wink=new THREE.Mesh(new THREE.BoxGeometry(.06*s,.01*s,.02*s),new THREE.MeshBasicMaterial({color:0x222222}));
+    wink.position.set(.07*s,1.55*s,-.18*s);g.add(wink);
+    // Smile
+    const smile=new THREE.Mesh(new THREE.TorusGeometry(.06*s,.01*s,4,8,Math.PI),new THREE.MeshBasicMaterial({color:0xcc4444}));
+    smile.position.set(0,1.45*s,-.18*s);g.add(smile);
+  }else if(t.headType==='skibidi'){
+    // 跟马桶类似但在跳舞
+    const bowl=new THREE.Mesh(new THREE.CylinderGeometry(.2*s,.18*s,.25*s,10),headM);
+    bowl.position.y=1.45*s;g.add(bowl);
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(.35*s,.04*s,.3*s),headM);
+    lid.position.set(0,1.6*s,0);g.add(lid);
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.03*s,6,4),eyeM);_m.position.set(-.06*s,1.5*s,-.16*s);return _m;}()));
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.03*s,6,4),eyeM);_m.position.set(.06*s,1.5*s,-.16*s);return _m;}()));
+  }else{
+    // Gyatt巨人 - 大号普通头
+    const head2=new THREE.Mesh(new THREE.SphereGeometry(.3*s,10,8),headM);
+    head2.position.y=1.65*s;g.add(head2);
+    ap(g,new THREE.Mesh(new THREE.SphereGeometry(.05*s,6,4),new THREE.MeshBasicMaterial({color:0xffffff})),-.1*s,1.7*s,-.25*s);
+    ap(g,new THREE.Mesh(new THREE.SphereGeometry(.05*s,6,4),new THREE.MeshBasicMaterial({color:0xffffff})),.1*s,1.7*s,-.25*s);
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.025*s,6,4),eyeM);_m.position.set(-.1*s,1.7*s,-.3*s);return _m;}()));
+    g.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.025*s,6,4),eyeM);_m.position.set(.1*s,1.7*s,-.3*s);return _m;}()));
+  }
+
+  g.userData.type=type;g.userData.s=s;
+  g.castShadow=true;
+  return g;
+}
+
+// ═══ PLAYER ═══
+const playerG=new THREE.Group();
+const pMat=new THREE.MeshLambertMaterial({color:0x4488ff});
+const pSkin=new THREE.MeshLambertMaterial({color:0xddaa77});
+playerG.add((function(){var _m=new THREE.Mesh(new THREE.BoxGeometry(.5,.7,.35),pMat);_m.position.set(0,1,0);return _m;}()));
+playerG.add((function(){var _m=new THREE.Mesh(new THREE.SphereGeometry(.22,10,8),pSkin);_m.position.set(0,1.65,0);return _m;}()));
+// Eyes
+ap(playerG,new THREE.Mesh(new THREE.SphereGeometry(.03,6,4),new THREE.MeshBasicMaterial({color:0x222222})),-.07,1.68,-.2);
+ap(playerG,new THREE.Mesh(new THREE.SphereGeometry(.03,6,4),new THREE.MeshBasicMaterial({color:0x222222})),.07,1.68,-.2);
+// Legs
+const pLegL=new THREE.Mesh(new THREE.BoxGeometry(.18,.5,.18),pMat);pLegL.position.set(-.12,.3,0);playerG.add(pLegL);
+const pLegR=pLegL.clone();pLegR.position.x=.12;playerG.add(pLegR);
+// Right leg (kicking)
+const kickLeg=new THREE.Group();kickLeg.position.set(.12,.55,0);
+const kickLegMesh=new THREE.Mesh(new THREE.BoxGeometry(.18,.5,.18),pMat);
+kickLegMesh.position.y=-.25;kickLeg.add(kickLegMesh);
+const shoe=new THREE.Mesh(new THREE.BoxGeometry(.2,.1,.25),new THREE.MeshLambertMaterial({color:0xff4444}));
+shoe.position.set(0,-.5,.03);kickLeg.add(shoe);
+playerG.add(kickLeg);
+// Arms
+const pArmL=new THREE.Mesh(new THREE.BoxGeometry(.15,.5,.15),pMat);pArmL.position.set(-.35,.9,0);playerG.add(pArmL);
+const pArmR=pArmL.clone();pArmR.position.x=.35;playerG.add(pArmR);
+playerG.castShadow=true;scene.add(playerG);
+
+// ═══ STATE ═══
+const pos=new THREE.Vector3(0,0,0);
+let yaw=0,score=0,totalKicks=0,bestDist=0;
+let kickCharge=0,charging=false,kicking=false,kickT=0;
+const K={};let pointerLocked=false;
+const brainrots=[];const flyingBodies=[];
+let runPhase=0;
+
+// ═══ INPUT ═══
+document.addEventListener('keydown',e=>K[e.code]=true);
+document.addEventListener('keyup',e=>K[e.code]=false);
+document.addEventListener('mousemove',e=>{
+  if(!pointerLocked||state!=='playing')return;
+  yaw-=e.movementX*.002;
+});
+document.addEventListener('mousedown',()=>{
+  if(state==='playing'&&!pointerLocked)try{ren.domElement.requestPointerLock();}catch(ex){}
+  if(state==='playing'&&pointerLocked&&!kicking)charging=true;
+});
+document.addEventListener('mouseup',()=>{
+  if(charging&&state==='playing'){doKick();charging=false;}
+});
+document.addEventListener('pointerlockchange',()=>{pointerLocked=!!document.pointerLockElement;document.body.style.cursor=pointerLocked?'none':'default';});
+
+// ═══ KICK ═══
+function doKick(){
+  kicking=true;kickT=.4;
+  kickLeg.rotation.x=-1.5-kickCharge; // 踢腿动画
+
+  // 找最近的脑残
+  let nearest=null,nearD=999;
+  for(const b of brainrots){
+    if(b.flying)continue;
+    const d=Math.hypot(b.mesh.position.x-pos.x,b.mesh.position.z-pos.z);
+    // 必须在前方
+    const toBx=b.mesh.position.x-pos.x,toBz=b.mesh.position.z-pos.z;
+    const dot=toBx*(-Math.sin(yaw))+toBz*(-Math.cos(yaw));
+    if(d<3&&dot>0&&d<nearD){nearD=d;nearest=b;}
+  }
+
+  if(nearest){
+    const power=2+kickCharge*25;
+    const upPower=3+kickCharge*12;
+    nearest.flying=true;
+    nearest.vx=-Math.sin(yaw)*power;
+    nearest.vz=-Math.cos(yaw)*power;
+    nearest.vy=upPower;
+    nearest.spin=(Math.random()-.5)*15;
+    nearest.startPos=nearest.mesh.position.clone();
+
+    totalKicks++;
+    // Show brainrot name
+    const bn=document.getElementById('brainrotName');
+    bn.textContent='踢飞了 '+BRAINROTS[nearest.typeIdx].name+'!';
+    bn.style.opacity='1';setTimeout(()=>bn.style.opacity='0',1200);
+  }
+  kickCharge=0;
+  document.getElementById('kickFill').style.width='0%';
+}
+
+// ═══ SPAWN ═══
+function spawnBrainrot(){
+  const typeIdx=Math.floor(Math.random()*BRAINROTS.length);
+  const mesh=buildBrainrot(typeIdx);
+  const angle=Math.random()*Math.PI*2;
+  const dist=8+Math.random()*10;
+  mesh.position.set(pos.x+Math.cos(angle)*dist,0,pos.z+Math.sin(angle)*dist);
+  mesh.rotation.y=Math.random()*Math.PI*2;
+  scene.add(mesh);
+  brainrots.push({mesh,typeIdx,flying:false,vx:0,vy:0,vz:0,spin:0,startPos:null,walkPhase:Math.random()*10,idleAnim:Math.random()*10});
+}
+
+// ═══ START ═══
+function startGame(){
+  try{
+  state='playing';
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hud').style.display='block';
+  document.getElementById('kickPower').style.display='block';
+  document.getElementById('kickLabel').style.display='block';
+  for(let i=0;i<6;i++)spawnBrainrot();
+  setTimeout(()=>{try{ren.domElement.requestPointerLock();}catch(e){}},300);
+  }catch(err){alert('错误: '+err.message);}
+}
+
+// ═══ LOOP ═══
+const clock=new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(clock.getDelta(),.04);
+  if(state!=='playing'){ren.render(scene,camera);return;}
+
+  // Player movement
+  const spd=4*dt;
+  const fx=-Math.sin(yaw),fz=-Math.cos(yaw);
+  const rx=Math.cos(yaw),rz=-Math.sin(yaw);
+  let moving=false;
+  if(K['KeyW']){pos.x+=fx*spd;pos.z+=fz*spd;moving=true;}
+  if(K['KeyS']){pos.x-=fx*spd;pos.z-=fz*spd;moving=true;}
+  if(K['KeyD']){pos.x+=rx*spd;pos.z+=rz*spd;moving=true;}
+  if(K['KeyA']){pos.x-=rx*spd;pos.z-=rz*spd;moving=true;}
+
+  playerG.position.set(pos.x,0,pos.z);
+  playerG.rotation.y=yaw;
+
+  // Run animation
+  if(moving){
+    runPhase+=dt*10;
+    pLegL.rotation.x=Math.sin(runPhase)*.4;
+    pLegR.rotation.x=-Math.sin(runPhase)*.4;
+  }else{pLegL.rotation.x*=.85;pLegR.rotation.x*=.85;}
+
+  // Kick animation
+  if(kicking){
+    kickT-=dt;
+    if(kickT<=0){kicking=false;kickLeg.rotation.x=0;}
+    else kickLeg.rotation.x*=.9;
+  }
+
+  // Charge power
+  if(charging){
+    kickCharge=Math.min(kickCharge+dt*1.5,1);
+    document.getElementById('kickFill').style.width=(kickCharge*100)+'%';
+  }
+
+  // Brainrots AI + Flying
+  for(let i=brainrots.length-1;i>=0;i--){
+    const b=brainrots[i];
+    if(b.flying){
+      // Flying physics
+      b.vx*=.995;b.vz*=.995;
+      b.vy-=15*dt;
+      b.mesh.position.x+=b.vx*dt;
+      b.mesh.position.y+=b.vy*dt;
+      b.mesh.position.z+=b.vz*dt;
+      b.mesh.rotation.x+=b.spin*dt;
+      b.mesh.rotation.z+=b.spin*.7*dt;
+
+      // Landed
+      if(b.mesh.position.y<=0&&b.vy<0){
+        b.mesh.position.y=0;
+        // Calculate distance
+        const flyDist=Math.hypot(b.mesh.position.x-b.startPos.x,b.mesh.position.z-b.startPos.z);
+        const pts=Math.floor(flyDist*10);
+        score+=pts;
+        if(flyDist>bestDist)bestDist=flyDist;
+
+        // Show fly distance
+        const ft=document.getElementById('flyText');
+        if(flyDist>30)ft.textContent='🔥 '+flyDist.toFixed(1)+'m! 超远!';
+        else if(flyDist>15)ft.textContent='💪 '+flyDist.toFixed(1)+'m! 不错!';
+        else ft.textContent=flyDist.toFixed(1)+'m';
+        ft.style.opacity='1';setTimeout(()=>ft.style.opacity='0',800);
+
+        // Remove and respawn
+        scene.remove(b.mesh);brainrots.splice(i,1);
+        setTimeout(spawnBrainrot,1000);
+        continue;
+      }
+
+      // Bounce
+      if(b.mesh.position.y<=0&&Math.abs(b.vy)>2){
+        b.vy*=-.4;b.mesh.position.y=.1;
+      }
+    }else{
+      // Idle: walk toward player slowly and do funny animations
+      const dx=pos.x-b.mesh.position.x,dz=pos.z-b.mesh.position.z;
+      const dist2=Math.hypot(dx,dz);
+      if(dist2>2){
+        b.mesh.position.x+=dx/dist2*.8*dt;
+        b.mesh.position.z+=dz/dist2*.8*dt;
+        b.mesh.rotation.y=Math.atan2(dx,dz);
+      }
+      // Funny idle animation
+      b.idleAnim+=dt*3;
+      b.mesh.position.y=Math.abs(Math.sin(b.idleAnim))*.15; // 跳跳
+      b.mesh.rotation.z=Math.sin(b.idleAnim*1.3)*.1; // 左右摇
+    }
+  }
+
+  // Spawn more
+  if(brainrots.filter(b=>!b.flying).length<4&&Math.random()<dt*.5)spawnBrainrot();
+
+  // Camera
+  const cd=5,ch=3;
+  const cx=pos.x+Math.sin(yaw)*cd,cz=pos.z+Math.cos(yaw)*cd;
+  camera.position.lerp(new THREE.Vector3(cx,ch,cz),.08);
+  camera.lookAt(pos.x,1,pos.z);
+
+  // HUD
+  document.getElementById('score').textContent=score+' 分';
+  document.getElementById('totalKicks').textContent='踢飞: '+totalKicks;
+  document.getElementById('bestKick').textContent='最远: '+bestDist.toFixed(1)+'m';
+
+  ren.render(scene,camera);
+}
+loop();
+</script>
+</body></html>
