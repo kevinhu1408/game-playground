@@ -123,12 +123,29 @@ canvas{display:block}
   <h1>无畏契约</h1><div class="sub">VALORANT</div>
   <p>WASD移动 | 鼠标瞄准 | 左键射击 | R换弹 | B商店</p>
   <p>Q/E/C/X 技能 | 4安装炸弹 | 1-3切换武器 | 空格跳跃</p>
-  <button class="pbtn" id="playBtn">开始</button>
+  <button class="pbtn" id="playBtn">单人开始</button>
   <button class="pbtn" id="trainBtn" style="margin-top:10px;background:#2288aa">训练场</button>
+  <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,.15);padding-top:16px">
+    <div style="color:rgba(255,255,255,.5);font-size:12px;letter-spacing:2px;margin-bottom:10px">联机模式</div>
+    <button class="pbtn" id="hostBtn" style="background:#22aa44;margin-right:8px">创建房间</button>
+    <button class="pbtn" id="joinBtn" style="background:#2266cc">加入房间</button>
+    <div id="roomInfo" style="margin-top:10px;display:none">
+      <div id="roomCode" style="color:#ffd740;font-size:24px;letter-spacing:4px;font-weight:700"></div>
+      <div style="color:rgba(255,255,255,.4);font-size:11px;margin-top:4px">把房间码发给朋友</div>
+      <div id="peerCount" style="color:#3ddc84;font-size:13px;margin-top:6px">等待玩家加入...</div>
+      <button class="pbtn" id="mpStartBtn" style="margin-top:10px;background:#e74c3c;display:none">开始游戏</button>
+    </div>
+    <div id="joinPanel" style="margin-top:10px;display:none">
+      <input id="joinInput" type="text" placeholder="输入房间码" style="padding:8px 14px;font-size:16px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:4px;text-align:center;letter-spacing:3px;width:180px">
+      <button class="pbtn" id="joinGoBtn" style="margin-left:8px;padding:8px 20px">加入</button>
+      <div id="joinStatus" style="color:rgba(255,255,255,.4);font-size:11px;margin-top:6px"></div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script>
 // ═══════ AUDIO ═══════
 let AC=null;
@@ -1500,6 +1517,16 @@ function shoot(){
       }else ch.className='hit';
       setTimeout(()=>ch.className='',120);
     }
+    // 联机：检测是否打中其他玩家
+    if(mpMode&&!best){
+      const hitId=mpCheckHit(aimDir);
+      if(hitId){
+        const dmg=w.dmg||20;
+        mpBroadcast({type:'hit',target:hitId,dmg:dmg,sfx:w.sfx||'rifle'});
+        sfx('hit');
+        const ch2=document.getElementById('ch');ch2.className='hit';setTimeout(()=>ch2.className='',120);
+      }
+    }
     // 找子弹终点(敌人或墙壁)
     let hitDist=best?bestD:80;
     let hitWall=false,hitPos=null,hitNormal=null;
@@ -2263,6 +2290,191 @@ document.addEventListener('contextmenu',e=>e.preventDefault());
 let trainingMode=false;
 document.getElementById('playBtn').addEventListener('click',()=>{trainingMode=false;initA();startGame();});
 document.getElementById('trainBtn').addEventListener('click',()=>{trainingMode=true;initA();startTraining();});
+
+// ═══════ MULTIPLAYER (PeerJS) ═══════
+let mpMode=false, mpHost=false, mpPeer=null, mpConns=[], mpPlayers={}, mpMyId='';
+const MP_SYNC_RATE=50; // ms between syncs
+let mpSyncTimer=0;
+
+function genRoomCode(){return Math.random().toString(36).substr(2,5).toUpperCase();}
+
+// 创建远程玩家模型
+function createRemotePlayer(id){
+  const cfg={primary:0x3366cc,secondary:0x112244,accent:0x44aaff,eyeColor:0x44aaff,skin:0xc4a882,h:3,gunType:'rifle'};
+  const mesh=buildBody(cfg);
+  mesh.scale.set(0.6,0.6,0.6);
+  scene.add(mesh);
+  // 名字标签
+  const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='#44aaff';ctx.font='bold 32px sans-serif';ctx.textAlign='center';
+  ctx.fillText(id.substr(0,5),128,40);
+  const tex=new THREE.CanvasTexture(canvas);
+  const label=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+  label.scale.set(2,.5,1);label.position.y=2.5;mesh.add(label);
+  mpPlayers[id]={mesh:mesh,pos:{x:0,y:0,z:0},yaw:0,pitch:0,hp:100,lastUpdate:Date.now()};
+  return mpPlayers[id];
+}
+
+// 移除远程玩家
+function removeRemotePlayer(id){
+  if(mpPlayers[id]){scene.remove(mpPlayers[id].mesh);delete mpPlayers[id];}
+}
+
+// 处理收到的数据
+function handleMPData(id,data){
+  if(data.type==='state'){
+    if(!mpPlayers[id]) createRemotePlayer(id);
+    const p=mpPlayers[id];
+    p.pos=data.pos;p.yaw=data.yaw;p.pitch=data.pitch;p.hp=data.hp;
+    p.weapon=data.weapon;p.lastUpdate=Date.now();
+  }else if(data.type==='shoot'){
+    if(!mpPlayers[id])return;
+    // 播放射击音效
+    sfx(data.sfx||'rifle');
+    // 检测是否打中本地玩家
+    if(data.hitId===mpMyId){
+      hp-=data.dmg||20;
+      document.getElementById('dmg').style.opacity=1;setTimeout(()=>{document.getElementById('dmg').style.opacity=0;},100);
+      if(hp<=0){hp=0;playerDead=true;}
+    }
+  }else if(data.type==='hit'){
+    // 被打中
+    if(data.target===mpMyId){
+      hp-=data.dmg||20;
+      document.getElementById('dmg').style.opacity=1;setTimeout(()=>{document.getElementById('dmg').style.opacity=0;},100);
+      if(hp<=0){hp=0;}
+    }
+  }else if(data.type==='join'){
+    if(!mpPlayers[id]) createRemotePlayer(id);
+  }else if(data.type==='leave'){
+    removeRemotePlayer(id);
+  }
+}
+
+// 发送数据给所有连接
+function mpBroadcast(data){
+  for(const conn of mpConns){
+    try{if(conn.open)conn.send(data);}catch(e){}
+  }
+}
+
+// 同步本地玩家状态
+function mpSyncState(){
+  const data={type:'state',pos:{x:pos.x,y:pos.y,z:pos.z},yaw:yaw,pitch:pitch,hp:hp,
+    weapon:curW()?curW().n:'',id:mpMyId};
+  mpBroadcast(data);
+}
+
+// 联机射击命中检测
+function mpCheckHit(aimDir){
+  let bestD=Infinity,bestId=null;
+  for(const[id,p] of Object.entries(mpPlayers)){
+    if(p.hp<=0)continue;
+    const dx=p.pos.x-pos.x,dz=p.pos.z-pos.z,dy=p.pos.y-pos.y;
+    const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if(d<1||d>100)continue;
+    const toP=new THREE.Vector3(dx,dy,dz).normalize();
+    const dot=aimDir.dot(toP);
+    if(dot>0.98&&d<bestD){bestD=d;bestId=id;}
+  }
+  return bestId;
+}
+
+// 更新远程玩家模型位置
+function mpUpdatePlayers(){
+  const now=Date.now();
+  for(const[id,p] of Object.entries(mpPlayers)){
+    // 超过5秒没更新=断线
+    if(now-p.lastUpdate>5000){removeRemotePlayer(id);continue;}
+    // 平滑插值位置
+    p.mesh.position.x+=(p.pos.x-p.mesh.position.x)*.2;
+    p.mesh.position.y+=((p.pos.y-1.7)-p.mesh.position.y)*.2;
+    p.mesh.position.z+=(p.pos.z-p.mesh.position.z)*.2;
+    p.mesh.rotation.y=p.yaw+Math.PI;
+  }
+}
+
+// 设置连接事件
+function setupConn(conn){
+  mpConns.push(conn);
+  conn.on('data',(data)=>{handleMPData(conn.peer,data);});
+  conn.on('close',()=>{
+    mpConns=mpConns.filter(c=>c!==conn);
+    removeRemotePlayer(conn.peer);
+    updatePeerCount();
+  });
+  conn.on('open',()=>{
+    conn.send({type:'join',id:mpMyId});
+    updatePeerCount();
+  });
+}
+
+function updatePeerCount(){
+  const el=document.getElementById('peerCount');
+  const n=mpConns.filter(c=>c.open).length;
+  if(el)el.textContent=`已连接: ${n} 名玩家`;
+  const btn=document.getElementById('mpStartBtn');
+  if(btn)btn.style.display=n>0?'inline-block':'none';
+}
+
+// 创建房间(主机)
+document.getElementById('hostBtn').addEventListener('click',()=>{
+  const roomCode=genRoomCode();
+  mpMyId='host-'+roomCode;
+  mpHost=true;mpMode=true;
+  mpPeer=new Peer('valo-'+roomCode);
+  mpPeer.on('open',(id)=>{
+    document.getElementById('roomInfo').style.display='block';
+    document.getElementById('joinPanel').style.display='none';
+    document.getElementById('roomCode').textContent=roomCode;
+  });
+  mpPeer.on('connection',(conn)=>{
+    setupConn(conn);
+    // 通知其他玩家有新人加入
+    mpBroadcast({type:'join',id:conn.peer});
+  });
+  mpPeer.on('error',(err)=>{
+    document.getElementById('roomCode').textContent='创建失败,重试';
+    console.error('PeerJS错误:',err);
+  });
+});
+
+// 加入房间
+document.getElementById('joinBtn').addEventListener('click',()=>{
+  document.getElementById('joinPanel').style.display='block';
+  document.getElementById('roomInfo').style.display='none';
+});
+document.getElementById('joinGoBtn').addEventListener('click',()=>{
+  const code=document.getElementById('joinInput').value.trim().toUpperCase();
+  if(!code){document.getElementById('joinStatus').textContent='请输入房间码';return;}
+  mpMyId='player-'+Math.random().toString(36).substr(2,4);
+  mpMode=true;mpHost=false;
+  mpPeer=new Peer(mpMyId);
+  mpPeer.on('open',()=>{
+    document.getElementById('joinStatus').textContent='连接中...';
+    const conn=mpPeer.connect('valo-'+code);
+    conn.on('open',()=>{
+      setupConn(conn);
+      document.getElementById('joinStatus').textContent='已连接!';
+      // 自动开始游戏
+      setTimeout(()=>{
+        initA();trainingMode=true;startTraining();
+      },500);
+    });
+    conn.on('error',(err)=>{
+      document.getElementById('joinStatus').textContent='连接失败';
+    });
+  });
+  mpPeer.on('error',(err)=>{
+    document.getElementById('joinStatus').textContent='连接失败: '+err.type;
+  });
+});
+
+// 主机开始游戏
+document.getElementById('mpStartBtn').addEventListener('click',()=>{
+  mpBroadcast({type:'start'});
+  initA();trainingMode=true;startTraining();
+});
 
 function startTraining(){
   document.getElementById('overlay').style.display='none';
@@ -3500,6 +3712,14 @@ function loop(){
     }
   }
   updHUD();
+
+  // ═══ 联机同步 ═══
+  if(mpMode&&mpPeer&&state==='playing'){
+    mpSyncTimer+=dt*1000;
+    if(mpSyncTimer>=MP_SYNC_RATE){mpSyncTimer=0;mpSyncState();}
+    mpUpdatePlayers();
+  }
+
   ren.render(scene,camera);
   }catch(err){console.error('loop error:',err);}
 }
