@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Troll vs Runner 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;overflow:hidden;font-family:'Segoe UI',sans-serif}
+canvas{display:block}
+#lobby{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a2e,#1a0a3e);z-index:20}
+#lobby h1{font-size:44px;letter-spacing:4px;background:linear-gradient(135deg,#ff4444,#ffaa33,#44aaff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:rgba(255,255,255,.4);font-size:13px;letter-spacing:2px;margin:8px 0 25px}
+.btn{padding:12px 28px;font-size:15px;border:none;border-radius:6px;cursor:pointer;font-weight:700;letter-spacing:2px;margin:5px;color:#fff;transition:all .15s}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.2)}
+.btn-g{background:#27ae60}.btn-b{background:#2980b9}.btn-o{background:#e67e22}.btn-r{background:#e74c3c}
+input{padding:10px 14px;font-size:18px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:6px;text-align:center;letter-spacing:3px;width:180px}
+.room-code{color:#ffd740;font-size:36px;letter-spacing:6px;font-weight:700;margin:8px}
+.info{color:rgba(255,255,255,.35);font-size:11px}
+.role-pick{display:inline-block;padding:20px 28px;border:2px solid rgba(255,255,255,.1);border-radius:10px;margin:6px;cursor:pointer;text-align:center;transition:all .15s}
+.role-pick:hover{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.04)}
+.role-pick.sel{border-color:#ffd740;background:rgba(255,215,0,.08)}
+.role-icon{font-size:36px}.role-name{font-size:16px;font-weight:700;margin-top:4px;letter-spacing:2px}
+.role-desc{font-size:10px;color:rgba(255,255,255,.35);margin-top:2px}
+#hud{position:fixed;top:0;left:0;right:0;display:none;padding:8px 16px;z-index:10;pointer-events:none}
+#hud>div{display:flex;justify-content:space-between;align-items:center}
+.hi{background:rgba(0,0,0,.6);padding:5px 12px;border-radius:4px;font-size:13px;color:#fff}
+#msg{position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:32px;font-weight:700;letter-spacing:4px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s;text-shadow:0 0 20px rgba(0,0,0,.5);text-align:center}
+#trollUI{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:none;z-index:10;background:rgba(0,0,0,.7);padding:10px 20px;border-radius:8px;color:#fff;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div id="lobby">
+  <h1>TROLL VS RUNNER</h1>
+  <div class="sub">3D整蛊跑酷 — 联机对抗</div>
+  <div id="lMenu">
+    <button class="btn btn-g" onclick="doHost()">创建房间</button>
+    <button class="btn btn-b" onclick="doJoin()">加入房间</button>
+  </div>
+  <div id="lHost" style="display:none;text-align:center">
+    <div class="info">房间码</div>
+    <div class="room-code" id="rCode"></div>
+    <div class="info">发给朋友</div>
+    <div id="pStat" style="color:#3ddc84;margin-top:10px">等待玩家...</div>
+    <div id="rSel" style="display:none;margin-top:16px">
+      <div style="margin-bottom:8px;color:rgba(255,255,255,.6)">选择角色</div>
+      <div class="role-pick" onclick="pickRole('runner')"><div class="role-icon">🏃</div><div class="role-name">Runner</div><div class="role-desc">第三人称跑酷</div></div>
+      <div class="role-pick" onclick="pickRole('troller')"><div class="role-icon">🤡</div><div class="role-name">Troller</div><div class="role-desc">上帝视角控制机关</div></div>
+      <br><button class="btn btn-o" id="goBtn" style="display:none;margin-top:12px" onclick="go()">开始!</button>
+    </div>
+  </div>
+  <div id="lJoin" style="display:none;text-align:center">
+    <input id="jIn" placeholder="房间码"><button class="btn btn-b" onclick="joinGo()">加入</button>
+    <div id="jStat" style="margin-top:8px;color:rgba(255,255,255,.4);font-size:12px"></div>
+    <div id="cRole" style="display:none;margin-top:16px">
+      <div style="margin-bottom:8px;color:rgba(255,255,255,.6)">选择角色</div>
+      <div class="role-pick" onclick="pickRole('runner')"><div class="role-icon">🏃</div><div class="role-name">Runner</div></div>
+      <div class="role-pick" onclick="pickRole('troller')"><div class="role-icon">🤡</div><div class="role-name">Troller</div></div>
+      <div class="info" style="margin-top:8px">等待主机开始</div>
+    </div>
+  </div>
+</div>
+<div id="hud"><div>
+  <div class="hi" id="hRole"></div>
+  <div class="hi" id="hLvl">关卡 1</div>
+  <div class="hi" id="hScore">分数: 0</div>
+  <div class="hi" id="hTime">60</div>
+</div></div>
+<div id="msg"></div>
+<div id="trollUI">🤡 点击红色高亮的平台让它消失 | 点击⚠让尖刺弹出<br>鼠标移动选择 | 左键激活/关闭</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+// ═══════ 初始化Three.js ═══════
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x1a1a2e);
+scene.fog=new THREE.Fog(0x1a1a2e,60,120);
+const ren=new THREE.WebGLRenderer({antialias:false});
+ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(1);
+document.body.appendChild(ren.domElement);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,200);
+// 灯光
+const amb=new THREE.AmbientLight(0x334466,.6);scene.add(amb);
+const sun=new THREE.DirectionalLight(0xaabbcc,.7);sun.position.set(20,30,10);scene.add(sun);
+const hemi=new THREE.HemisphereLight(0x2244aa,0x222211,.3);scene.add(hemi);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
+
+// ═══════ 网络 ═══════
+let peer=null,conn=null,isHost=false,myRole='',otherRole='',netReady=false;
+function genC(){return Math.random().toString(36).substr(2,5).toUpperCase();}
+function doHost(){
+  document.getElementById('lMenu').style.display='none';
+  document.getElementById('lHost').style.display='block';
+  const c=genC();isHost=true;peer=new Peer('tvr3-'+c);
+  peer.on('open',()=>{document.getElementById('rCode').textContent=c;});
+  peer.on('connection',cn=>{conn=cn;netReady=true;
+    document.getElementById('pStat').textContent='玩家已连接!';
+    document.getElementById('rSel').style.display='block';
+    cn.on('data',onData);cn.on('close',()=>{netReady=false;});
+  });
+}
+function doJoin(){
+  document.getElementById('lMenu').style.display='none';
+  document.getElementById('lJoin').style.display='block';
+}
+function joinGo(){
+  const c=document.getElementById('jIn').value.trim().toUpperCase();
+  if(!c)return;
+  peer=new Peer('tvr3c-'+Math.random().toString(36).substr(2,4));
+  peer.on('open',()=>{
+    document.getElementById('jStat').textContent='连接中...';
+    conn=peer.connect('tvr3-'+c);
+    conn.on('open',()=>{netReady=true;document.getElementById('jStat').textContent='已连接!';document.getElementById('cRole').style.display='block';});
+    conn.on('data',onData);
+  });
+}
+function pickRole(r){
+  myRole=r;
+  document.querySelectorAll('.role-pick').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('.role-pick').forEach(b=>{if(b.querySelector('.role-name').textContent===(r==='runner'?'Runner':'Troller'))b.classList.add('sel');});
+  if(conn&&conn.open)conn.send({type:'role',role:r});
+  if(isHost&&otherRole)document.getElementById('goBtn').style.display='inline-block';
+}
+function go(){
+  if(!myRole||!otherRole)return;
+  let yr=otherRole;if(myRole===otherRole)yr=myRole==='runner'?'troller':'runner';
+  conn.send({type:'go',yourRole:yr});
+  beginGame();
+}
+function onData(d){
+  if(d.type==='role'){otherRole=d.role;if(isHost&&myRole)document.getElementById('goBtn').style.display='inline-block';}
+  if(d.type==='go'){myRole=d.yourRole;beginGame();}
+  if(d.type==='rpos'){rRunner.x=d.x;rRunner.y=d.y;rRunner.z=d.z;rRunner.dead=d.dead;rRunner.fin=d.fin;}
+  if(d.type==='trap'){toggleTrap(d.id);}
+  if(d.type==='died'){trollScore++;}
+  if(d.type==='win'){runScore++;}
+  if(d.type==='nlvl'){curLvl++;buildLevel();}
+}
+function send(d){if(conn&&conn.open)conn.send(d);}
+
+// ═══════ 游戏状态 ═══════
+let active=false,curLvl=0,timer=60,runScore=0,trollScore=0;
+let plats=[],trapList=[],finishPlat=null;
+const runner={x:0,y:2,z:0,vx:0,vy:0,vz:0,onG:false,dead:false,fin:false,respT:0};
+const rRunner={x:0,y:2,z:0,dead:false,fin:false};
+const K={};
+document.addEventListener('keydown',e=>{K[e.code]=true;});
+document.addEventListener('keyup',e=>{K[e.code]=false;});
+
+// 鼠标(Troller)
+const mouse=new THREE.Vector2();
+const raycaster=new THREE.Raycaster();
+let hoveredTrap=null;
+document.addEventListener('mousemove',e=>{mouse.x=(e.clientX/innerWidth)*2-1;mouse.y=-(e.clientY/innerHeight)*2+1;});
+document.addEventListener('click',()=>{
+  if(myRole!=='troller'||!active)return;
+  if(hoveredTrap!==null){
+    toggleTrap(hoveredTrap);
+    send({type:'trap',id:hoveredTrap});
+  }
+});
+
+// ═══════ 建模 ═══════
+const platMeshes=[];const trapMeshes=[];
+let runnerMesh=null,rRunnerMesh=null,finMesh=null;
+
+function makeMat(c,e){return new THREE.MeshStandardMaterial({color:c,emissive:e||0,roughness:.6,metalness:.3});}
+
+// Runner角色
+function makeRunner(color){
+  const g=new THREE.Group();
+  // 身体
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.6,.8,.4),makeMat(color)),{position:new THREE.Vector3(0,.4,0)}));
+  // 头
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.4,.4,.4),makeMat(0xffd5a5)),{position:new THREE.Vector3(0,1,0)}));
+  // 帽子
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.5,.12,.45),makeMat(0xe74c3c)),{position:new THREE.Vector3(0,1.25,0)}));
+  // 眼睛
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.05),makeMat(0x111111)),{position:new THREE.Vector3(-.1,.95,-.2)}));
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.05),makeMat(0x111111)),{position:new THREE.Vector3(.1,.95,-.2)}));
+  // 腿
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.2,.6,.25),makeMat(0x2c3e50)),{position:new THREE.Vector3(-.15,-.3,0)}));
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.2,.6,.25),makeMat(0x2c3e50)),{position:new THREE.Vector3(.15,-.3,0)}));
+  // 鞋
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.22,.12,.35),makeMat(0xffffff)),{position:new THREE.Vector3(-.15,-.6,-.03)}));
+  g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.22,.12,.35),makeMat(0xffffff)),{position:new THREE.Vector3(.15,-.6,-.03)}));
+  return g;
+}
+
+// 关卡
+function buildLevel(){
+  // 清理
+  platMeshes.forEach(m=>scene.remove(m));platMeshes.length=0;
+  trapMeshes.forEach(m=>scene.remove(m));trapMeshes.length=0;
+  if(finMesh)scene.remove(finMesh);
+  plats=[];trapList=[];
+  runner.x=0;runner.y=2;runner.z=0;runner.vx=0;runner.vy=0;runner.vz=0;runner.dead=false;runner.fin=false;
+  timer=60;
+
+  const levels=[
+    // 关卡1
+    ()=>{
+      addPlat(0,0,0,6,1,6,'start');
+      addPlat(0,0,-10,4,.5,3,'normal');
+      addPlat(0,1,-18,3,.5,3,'normal');addTrap(0,'fake');
+      addPlat(0,0,-26,4,.5,3,'normal');
+      addPlat(3,2,-32,3,.5,3,'normal');addTrap(1,'spike');
+      addPlat(-2,1,-38,4,.5,3,'normal');
+      addPlat(0,3,-44,3,.5,3,'normal');addTrap(2,'fake');
+      addPlat(0,2,-52,4,.5,3,'normal');
+      addPlat(4,4,-58,3,.5,3,'normal');
+      addPlat(-3,3,-64,4,.5,3,'normal');addTrap(3,'spike');
+      addPlat(0,2,-72,5,1,5,'finish');
+    },
+    // 关卡2
+    ()=>{
+      addPlat(0,0,0,6,1,6,'start');
+      addPlat(4,1,-8,3,.5,2,'normal');addTrap(0,'fake');
+      addPlat(-3,2,-14,3,.5,2,'normal');
+      addPlat(0,3,-20,2,.5,2,'small');addTrap(1,'spike');
+      addPlat(5,4,-26,3,.5,2,'normal');addTrap(2,'fake');
+      addPlat(-4,5,-32,2,.5,2,'small');
+      addPlat(0,6,-38,3,.5,2,'normal');
+      addPlat(3,5,-44,2,.5,2,'small');addTrap(3,'fake');
+      addPlat(-2,7,-50,3,.5,2,'normal');addTrap(4,'spike');
+      addPlat(0,8,-56,2,.5,2,'small');
+      addPlat(4,7,-62,3,.5,2,'normal');addTrap(5,'fake');
+      addPlat(0,6,-70,5,1,5,'finish');
+    },
+    // 关卡3
+    ()=>{
+      addPlat(0,0,0,5,1,5,'start');
+      for(let i=0;i<12;i++){
+        const x=(Math.sin(i*1.2))*5;
+        const y=i*1.2+1;
+        const z=-i*7-8;
+        addPlat(x,y,z,2+(i%2),.4,2,'normal');
+        if(i%2===0)addTrap(Math.floor(i/2),'fake');
+        if(i%3===0&&i>0)addTrap(100+i,'spike');
+      }
+      addPlat(0,15,-92,5,1,5,'finish');
+    }
+  ];
+  (levels[curLvl%levels.length])();
+
+  // 背景装饰(星星柱子)
+  for(let i=0;i<20;i++){
+    const px=(Math.random()-.5)*80,pz=-Math.random()*100;
+    const h=5+Math.random()*15;
+    const col=new THREE.Color().setHSL(Math.random()*.3+.5,.3,.15);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(1,h,1),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.3}));
+    m.position.set(px,h/2-2,pz);scene.add(m);platMeshes.push(m);// 用platMeshes方便清理
+  }
+}
+
+let trapIdx=0;
+function addPlat(x,y,z,w,h,d,type){
+  const idx=plats.length;
+  let color=0x556677;
+  if(type==='start')color=0x3a5a3a;
+  if(type==='finish')color=0xffd740;
+  if(type==='small')color=0x664466;
+
+  const geo=new THREE.BoxGeometry(w,h,d);
+  const mat=new THREE.MeshStandardMaterial({color:color,roughness:.5,metalness:.3});
+  const m=new THREE.Mesh(geo,mat);
+  m.position.set(x,y-h/2,z);scene.add(m);
+  platMeshes.push(m);
+
+  // 边缘发光
+  if(type==='finish'){
+    const glow=new THREE.Mesh(new THREE.BoxGeometry(w+.2,h+.2,d+.2),new THREE.MeshBasicMaterial({color:0xffd740,transparent:true,opacity:.15}));
+    glow.position.copy(m.position);scene.add(glow);platMeshes.push(glow);
+    finMesh=glow;
+  }
+
+  // 顶部纹理线
+  const line=new THREE.Mesh(new THREE.BoxGeometry(w-.2,.02,d-.2),new THREE.MeshStandardMaterial({color:0x7799aa,metalness:.6}));
+  line.position.set(x,y+.01,z);scene.add(line);platMeshes.push(line);
+
+  plats.push({x,y,z,w,h,d,type,idx,hidden:false,mesh:m});
+  return idx;
+}
+
+function addTrap(id,type){
+  const p=plats[plats.length-1];// 关联最近添加的平台
+  trapList.push({id,type,platIdx:p.idx,active:false});
+  if(type==='spike'){
+    // 尖刺(默认隐藏)
+    const sg=new THREE.Group();
+    for(let i=-1;i<=1;i++){
+      const spike=new THREE.Mesh(new THREE.ConeGeometry(.2,.8,4),new THREE.MeshStandardMaterial({color:0xff4444,emissive:0x440000}));
+      spike.position.set(p.x+i*.6,p.y+.5,p.z);sg.add(spike);
+    }
+    sg.visible=false;
+    scene.add(sg);trapMeshes.push(sg);
+    trapList[trapList.length-1].mesh=sg;
+    trapList[trapList.length-1].px=p.x;trapList[trapList.length-1].py=p.y;trapList[trapList.length-1].pz=p.z;
+  }
+}
+
+function toggleTrap(id){
+  const t=trapList.find(tr=>tr.id===id);if(!t)return;
+  t.active=!t.active;
+  if(t.type==='fake'){
+    const p=plats[t.platIdx];
+    p.hidden=t.active;
+    p.mesh.visible=!t.active;
+  }
+  if(t.type==='spike'&&t.mesh){
+    t.mesh.visible=t.active;
+  }
+}
+
+// ═══════ 消息 ═══════
+function showMsg(txt,dur){
+  const el=document.getElementById('msg');el.textContent=txt;el.style.opacity=1;
+  setTimeout(()=>{el.style.opacity=0;},dur||2000);
+}
+
+// ═══════ 开始 ═══════
+function beginGame(){
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('hud').style.display='block';
+  document.getElementById('hRole').textContent=myRole==='runner'?'🏃 Runner':'🤡 Troller';
+  if(myRole==='troller')document.getElementById('trollUI').style.display='block';
+  active=true;curLvl=0;runScore=0;trollScore=0;
+
+  // Runner模型
+  runnerMesh=makeRunner(0x3498db);scene.add(runnerMesh);
+  rRunnerMesh=makeRunner(0xe74c3c);scene.add(rRunnerMesh);
+
+  buildLevel();
+  showMsg('关卡 1 — 开始!',2000);
+}
+
+// ═══════ 更新 ═══════
+const clock=new THREE.Clock();
+function update(){
+  const dt=Math.min(clock.getDelta(),.05);
+  if(!active)return;
+
+  timer-=dt;
+  document.getElementById('hTime').textContent=Math.ceil(Math.max(0,timer));
+  document.getElementById('hLvl').textContent='关卡 '+(curLvl+1);
+  document.getElementById('hScore').textContent=myRole==='runner'?'通关:'+runScore:'击杀:'+trollScore;
+
+  if(timer<=0&&!runner.dead&&!runner.fin){
+    runner.dead=true;runner.respT=3;trollScore++;send({type:'died'});
+    showMsg('时间到!',2000);
+  }
+
+  // 终点动画
+  if(finMesh)finMesh.rotation.y+=dt;
+
+  // Runner物理
+  if(myRole==='runner'&&!runner.dead&&!runner.fin){
+    const spd=8,jmp=10;
+    // 输入
+    let mx=0,mz=0;
+    if(K['KeyA']||K['ArrowLeft'])mx=-1;
+    if(K['KeyD']||K['ArrowRight'])mx=1;
+    if(K['KeyW']||K['ArrowUp'])mz=-1;
+    if(K['KeyS']||K['ArrowDown'])mz=1;
+    const len=Math.sqrt(mx*mx+mz*mz)||1;
+    runner.vx=mx/len*spd*dt;runner.vz=mz/len*spd*dt;
+    if((K['Space'])&&runner.onG){runner.vy=jmp*dt;runner.onG=false;}
+
+    runner.vy-=.015;// 重力
+    runner.x+=runner.vx;runner.y+=runner.vy;runner.z+=runner.vz;
+
+    // 平台碰撞
+    runner.onG=false;
+    for(const p of plats){
+      if(p.hidden)continue;
+      const hw=p.w/2,hd=p.d/2;
+      if(runner.x>p.x-hw&&runner.x<p.x+hw&&runner.z>p.z-hd&&runner.z<p.z+hd){
+        if(runner.y>p.y&&runner.y<p.y+1.5&&runner.vy<=0){
+          runner.y=p.y;runner.vy=0;runner.onG=true;
+          if(p.type==='finish'&&!runner.fin){
+            runner.fin=true;runScore++;send({type:'win'});
+            showMsg('🏁 通关!',2000);
+            setTimeout(()=>{curLvl++;buildLevel();send({type:'nlvl'});showMsg('关卡 '+(curLvl+1),1500);},2000);
+          }
+        }
+      }
+    }
+
+    // 尖刺碰撞
+    for(const t of trapList){
+      if(t.type==='spike'&&t.active){
+        if(Math.abs(runner.x-t.px)<1&&Math.abs(runner.z-t.pz)<1&&runner.y<t.py+1.5&&runner.y>t.py-.5){
+          runner.dead=true;runner.respT=3;trollScore++;send({type:'died'});
+          showMsg('💀 被尖刺扎死!',2000);
+        }
+      }
+    }
+
+    // 掉下去
+    if(runner.y<-20){
+      runner.dead=true;runner.respT=3;trollScore++;send({type:'died'});
+      showMsg('💀 掉下去了!',2000);
+    }
+
+    send({type:'rpos',x:runner.x,y:runner.y,z:runner.z,dead:runner.dead,fin:runner.fin});
+  }
+
+  // 复活
+  if(runner.dead){
+    runner.respT-=dt;
+    if(runner.respT<=0){runner.x=0;runner.y=2;runner.z=0;runner.vy=0;runner.dead=false;timer=60;}
+  }
+
+  // 更新Runner模型位置
+  const r=myRole==='runner'?runner:rRunner;
+  if(runnerMesh){
+    runnerMesh.position.set(r.x,r.y+.6,r.z);
+    runnerMesh.visible=!r.dead;
+    // 腿部动画
+    const legSpeed=Math.abs(runner.vx)+Math.abs(runner.vz);
+    if(legSpeed>.001){
+      const t=Date.now()*.01;
+      if(runnerMesh.children[5])runnerMesh.children[5].position.z=Math.sin(t)*.15;
+      if(runnerMesh.children[6])runnerMesh.children[6].position.z=-Math.sin(t)*.15;
+    }
+  }
+  // 远程Runner
+  if(rRunnerMesh){
+    rRunnerMesh.position.set(rRunner.x,rRunner.y+.6,rRunner.z);
+    rRunnerMesh.visible=!rRunner.dead;
+  }
+
+  // 相机
+  if(myRole==='runner'){
+    // 第三人称跟随
+    const cx=r.x,cy=r.y+5,cz=r.z+8;
+    camera.position.lerp(new THREE.Vector3(cx,cy,cz),.08);
+    camera.lookAt(r.x,r.y+1,r.z);
+  }else{
+    // Troller: 上帝视角跟随Runner
+    const rx=myRole==='troller'?rRunner.x:runner.x;
+    const rz=myRole==='troller'?rRunner.z:runner.z;
+    camera.position.lerp(new THREE.Vector3(rx,25,rz+15),.05);
+    camera.lookAt(rx,0,rz);
+
+    // 鼠标悬停检测机关
+    raycaster.setFromCamera(mouse,camera);
+    hoveredTrap=null;
+    // 高亮可操作的平台
+    for(const t of trapList){
+      const p=plats[t.platIdx];
+      if(!p)continue;
+      if(t.type==='fake'){
+        const hits=raycaster.intersectObject(p.mesh);
+        if(hits.length>0){
+          p.mesh.material.emissive.set(0x442222);
+          hoveredTrap=t.id;
+        }else{
+          p.mesh.material.emissive.set(t.active?0x110000:0);
+        }
+      }
+      if(t.type==='spike'&&t.mesh){
+        // 检测尖刺区域附近
+        const sp=plats[t.platIdx];
+        if(sp){
+          const hits=raycaster.intersectObject(sp.mesh);
+          if(hits.length>0){
+            sp.mesh.material.emissive.set(0x224400);
+            hoveredTrap=t.id;
+          }
+        }
+      }
+    }
+  }
+}
+
+// ═══════ 主循环 ═══════
+function loop(){
+  requestAnimationFrame(loop);
+  update();
+  ren.render(scene,camera);
+}
+loop();
+</script>
+</body>
+</html>
