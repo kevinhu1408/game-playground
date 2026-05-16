@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>宝可梦 - Pokemon</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Courier New',monospace}
+canvas{image-rendering:pixelated;border:4px solid #333;border-radius:8px}
+#ui{position:fixed;bottom:20px;color:#fff;font-size:12px;text-align:center;opacity:.5}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">方向键移动 | Z确认 | X取消 | 草丛遇敌</div>
+<script>
+const C=document.getElementById('c');const ctx=C.getContext('2d');
+const W=480,H=320,TILE=16,SCALE=3;
+C.width=W;C.height=H;C.style.width=W*2+'px';C.style.height=H*2+'px';
+
+// ═══════ 颜色/绘图工具 ═══════
+const COL={
+  black:'#1a1a2e',white:'#f0f0f0',red:'#e74c3c',blue:'#3498db',green:'#27ae60',
+  darkgreen:'#1a5c2a',grass:'#4a8c3f',grassLight:'#5aad4a',path:'#c8b88a',pathDark:'#a89868',
+  water:'#2980b9',waterLight:'#5dade2',tree:'#1a5c2a',treeDark:'#0d3318',
+  roof:'#c0392b',wall:'#ddd5c0',wallDark:'#bbb098',door:'#8b4513',
+  skin:'#ffd5a5',skinDark:'#ddb080',hair:'#2c3e50',hat:'#e74c3c',
+  shirt:'#3498db',pants:'#2c3e50',shoe:'#1a1a2e',bag:'#e67e22'
+};
+
+// ═══════ 宝可梦数据 ═══════
+const POKEMON=[
+  {id:1,name:'妙蛙种子',type:'草',hp:45,atk:49,def:49,spd:45,moves:['撞击','藤鞭','飞叶快刀','寄生种子'],
+   color:'#4a8c5c',color2:'#2d5a3a',spot:'#5aad6a',evolution:{level:16,to:2}},
+  {id:2,name:'妙蛙草',type:'草',hp:60,atk:62,def:63,spd:60,moves:['撞击','藤鞭','飞叶快刀','光合作用'],
+   color:'#3a7a4c',color2:'#1d4a2a',spot:'#4a9d5a',evolution:{level:32,to:3}},
+  {id:3,name:'妙蛙花',type:'草',hp:80,atk:82,def:83,spd:80,moves:['飞叶快刀','日光束','地震','催眠粉'],
+   color:'#2a6a3c',color2:'#0d3a1a',spot:'#3a8d4a'},
+  {id:4,name:'小火龙',type:'火',hp:39,atk:52,def:43,spd:65,moves:['撞击','火花','火焰拳','烟幕'],
+   color:'#e8873a',color2:'#c06020',spot:'#f0a050',evolution:{level:16,to:5}},
+  {id:5,name:'火恐龙',type:'火',hp:58,atk:64,def:58,spd:80,moves:['撞击','火花','火焰拳','龙之怒'],
+   color:'#d07030',color2:'#a04818',spot:'#e08848',evolution:{level:36,to:6}},
+  {id:6,name:'喷火龙',type:'火',hp:78,atk:84,def:78,spd:100,moves:['火焰拳','喷射火焰','飞翔','龙之爪'],
+   color:'#c06028',color2:'#883810',spot:'#d87840'},
+  {id:7,name:'杰尼龟',type:'水',hp:44,atk:48,def:65,spd:43,moves:['撞击','水枪','泡沫','缩入壳中'],
+   color:'#5a9acd',color2:'#3070a0',spot:'#70b0e0',evolution:{level:16,to:8}},
+  {id:8,name:'卡咪龟',type:'水',hp:59,atk:63,def:80,spd:58,moves:['撞击','水枪','水之波动','铁壁'],
+   color:'#4a8abd',color2:'#205090',spot:'#60a0d0',evolution:{level:36,to:9}},
+  {id:9,name:'水箭龟',type:'水',hp:79,atk:83,def:100,spd:78,moves:['水之波动','水炮','冰冻光线','铁壁'],
+   color:'#3a7aad',color2:'#104080',spot:'#5090c0'},
+  {id:10,name:'波波',type:'普通',hp:40,atk:45,def:40,spd:56,moves:['撞击','啄','起风','电光一闪'],
+   color:'#a08060',color2:'#806040',spot:'#c0a080',evolution:{level:18,to:11}},
+  {id:11,name:'比比鸟',type:'普通',hp:63,atk:60,def:55,spd:71,moves:['啄','起风','电光一闪','羽毛舞'],
+   color:'#907050',color2:'#705030',spot:'#b09070'},
+  {id:12,name:'小拉达',type:'普通',hp:30,atk:56,def:35,spd:72,moves:['撞击','咬','电光一闪','必杀门牙'],
+   color:'#a070c0',color2:'#804898',spot:'#c090e0'},
+  {id:13,name:'皮卡丘',type:'电',hp:35,atk:55,def:40,spd:90,moves:['电击','十万伏特','电光一闪','铁尾'],
+   color:'#f0d020',color2:'#c0a010',spot:'#ffe040',evolution:{level:25,to:14}},
+  {id:14,name:'雷丘',type:'电',hp:60,atk:90,def:55,spd:110,moves:['十万伏特','打雷','电光一闪','铁尾'],
+   color:'#e0b010',color2:'#b08008',spot:'#f0c830'},
+  {id:15,name:'绿毛虫',type:'虫',hp:45,atk:30,def:35,spd:45,moves:['撞击','吐丝','虫咬','电光一闪'],
+   color:'#60a838',color2:'#408020',spot:'#80c858'},
+  {id:16,name:'尼多兰',type:'毒',hp:55,atk:47,def:52,spd:41,moves:['撞击','毒针','咬','二连踢'],
+   color:'#6888c8',color2:'#4060a0',spot:'#80a0e0'},
+  {id:17,name:'六尾',type:'火',hp:38,atk:41,def:40,spd:65,moves:['火花','电光一闪','鬼火','旋转火焰'],
+   color:'#d88030',color2:'#b06018',spot:'#f0a050'},
+  {id:18,name:'胖丁',type:'普通',hp:115,atk:45,def:20,spd:20,moves:['拍击','唱歌','滚动','摇手指'],
+   color:'#f0a0b0',color2:'#d08090',spot:'#ffc0d0'},
+  {id:19,name:'地鼠',type:'地面',hp:10,atk:55,def:25,spd:95,moves:['抓','挖洞','泥巴射击','切裂'],
+   color:'#b08050',color2:'#906030',spot:'#d0a070'},
+  {id:20,name:'喵喵',type:'普通',hp:40,atk:45,def:35,spd:90,moves:['抓','咬','聚宝功','佯攻'],
+   color:'#f0e0a0',color2:'#d0c080',spot:'#fffcc0'},
+];
+
+const MOVES={
+  '撞击':{power:40,type:'普通',acc:100},'藤鞭':{power:45,type:'草',acc:100},
+  '飞叶快刀':{power:55,type:'草',acc:95},'寄生种子':{power:0,type:'草',acc:90,effect:'drain'},
+  '火花':{power:40,type:'火',acc:100},'火焰拳':{power:75,type:'火',acc:100},
+  '喷射火焰':{power:90,type:'火',acc:100},'烟幕':{power:0,type:'普通',acc:100,effect:'accDown'},
+  '水枪':{power:40,type:'水',acc:100},'泡沫':{power:40,type:'水',acc:100},
+  '水之波动':{power:60,type:'水',acc:100},'水炮':{power:110,type:'水',acc:80},
+  '电击':{power:40,type:'电',acc:100},'十万伏特':{power:90,type:'电',acc:100},
+  '打雷':{power:110,type:'电',acc:70},'铁尾':{power:100,type:'钢',acc:75},
+  '啄':{power:35,type:'飞行',acc:100},'起风':{power:40,type:'飞行',acc:100},
+  '电光一闪':{power:40,type:'普通',acc:100,priority:true},
+  '咬':{power:60,type:'恶',acc:100},'必杀门牙':{power:80,type:'普通',acc:90},
+  '毒针':{power:15,type:'毒',acc:100,effect:'poison'},'二连踢':{power:30,type:'格斗',acc:100,hits:2},
+  '吐丝':{power:0,type:'虫',acc:95,effect:'spdDown'},'虫咬':{power:60,type:'虫',acc:100},
+  '日光束':{power:120,type:'草',acc:100},'地震':{power:100,type:'地面',acc:100},
+  '催眠粉':{power:0,type:'草',acc:75,effect:'sleep'},'光合作用':{power:0,type:'草',acc:100,effect:'heal'},
+  '龙之怒':{power:60,type:'龙',acc:100},'龙之爪':{power:80,type:'龙',acc:100},
+  '飞翔':{power:90,type:'飞行',acc:95},'冰冻光线':{power:90,type:'冰',acc:100},
+  '铁壁':{power:0,type:'钢',acc:100,effect:'defUp'},'缩入壳中':{power:0,type:'水',acc:100,effect:'defUp'},
+  '羽毛舞':{power:0,type:'飞行',acc:100,effect:'atkDown'},'鬼火':{power:0,type:'火',acc:85,effect:'burn'},
+  '旋转火焰':{power:35,type:'火',acc:85},'拍击':{power:40,type:'普通',acc:100},
+  '唱歌':{power:0,type:'普通',acc:55,effect:'sleep'},'滚动':{power:30,type:'岩石',acc:90},
+  '摇手指':{power:50,type:'普通',acc:100},'抓':{power:40,type:'普通',acc:100},
+  '挖洞':{power:80,type:'地面',acc:100},'泥巴射击':{power:55,type:'地面',acc:95},
+  '切裂':{power:70,type:'普通',acc:100},'聚宝功':{power:40,type:'普通',acc:100},
+  '佯攻':{power:30,type:'普通',acc:100},
+};
+
+const TYPE_EFFECT={
+  '火':{'草':2,'水':.5,'火':.5,'虫':2,'冰':2},
+  '水':{'火':2,'草':.5,'水':.5,'地面':2,'岩石':2},
+  '草':{'水':2,'火':.5,'草':.5,'地面':2,'岩石':2},
+  '电':{'水':2,'电':.5,'地面':0,'飞行':2},
+  '地面':{'火':2,'电':2,'草':.5,'飞行':0,'岩石':2},
+  '飞行':{'草':2,'虫':2,'格斗':2,'电':.5},
+  '虫':{'草':2,'毒':.5,'飞行':.5,'火':.5},
+  '毒':{'草':2,'毒':.5,'地面':.5},
+  '普通':{'岩石':.5,'钢':.5},
+  '冰':{'草':2,'地面':2,'飞行':2,'龙':2,'火':.5,'水':.5,'冰':.5},
+  '龙':{'龙':2},
+  '格斗':{'普通':2,'冰':2,'岩石':2},
+  '恶':{'普通':1},
+  '钢':{'冰':2,'岩石':2},
+  '岩石':{'火':2,'冰':2,'飞行':2,'虫':2},
+};
+
+// ═══════ 地图数据 ═══════
+// 0=草地 1=路 2=草丛 3=树 4=水 5=房子墙 6=门 7=屋顶 8=围栏 9=花
+const MAP_W=40,MAP_H=60;
+const map=[];
+function initMap(){
+  for(let y=0;y<MAP_H;y++){
+    map[y]=[];
+    for(let x=0;x<MAP_W;x++){
+      if(y<2||y>=MAP_H-2||x<2||x>=MAP_W-2) map[y][x]=3;// 边界树
+      else if(y>=2&&y<4&&x>5&&x<34) map[y][x]=3;// 上方树
+      else map[y][x]=0;// 默认草地
+    }
+  }
+  // ═══ 真新镇 (y:35-55) ═══
+  // 道路
+  for(let y=36;y<54;y++){map[y][19]=1;map[y][20]=1;}// 主路竖
+  for(let x=8;x<32;x++){map[45][x]=1;map[46][x]=1;}// 横路
+
+  // 玩家家(左)
+  for(let y=40;y<44;y++)for(let x=10;x<16;x++) map[y][x]=5;
+  for(let x=10;x<16;x++){map[39][x]=7;map[38][x]=7;}
+  map[43][12]=6;map[43][13]=6;
+
+  // 博士研究所(右)
+  for(let y=40;y<45;y++)for(let x=24;x<32;x++) map[y][x]=5;
+  for(let x=24;x<32;x++){map[39][x]=7;map[38][x]=7;}
+  map[44][27]=6;map[44][28]=6;
+
+  // 花园
+  for(let x=10;x<16;x++){map[47][x]=9;map[49][x]=9;}
+  for(let x=24;x<32;x++){map[47][x]=9;map[49][x]=9;}
+
+  // 围栏
+  for(let x=8;x<34;x++){map[35][x]=8;map[53][x]=8;}
+  for(let y=35;y<54;y++){map[y][8]=8;map[y][33]=8;}
+  map[35][19]=0;map[35][20]=0;// 上出口
+  map[53][19]=0;map[53][20]=0;// 下出口(被树挡)
+
+  // ═══ 1号道路 (y:10-35) ═══
+  for(let y=10;y<36;y++){map[y][19]=1;map[y][20]=1;}
+  // 草丛区域
+  for(let y=12;y<18;y++)for(let x=14;x<19;x++) map[y][x]=2;
+  for(let y=12;y<18;y++)for(let x=21;x<26;x++) map[y][x]=2;
+  for(let y=22;y<28;y++)for(let x=12;x<19;x++) map[y][x]=2;
+  for(let y=22;y<28;y++)for(let x=21;x<28;x++) map[y][x]=2;
+  for(let y=30;y<35;y++)for(let x=14;x<19;x++) map[y][x]=2;
+  for(let y=30;y<35;y++)for(let x=21;x<26;x++) map[y][x]=2;
+
+  // 树木装饰
+  for(let y=10;y<36;y++){
+    if(y%3===0){map[y][10]=3;map[y][11]=3;map[y][29]=3;map[y][30]=3;}
+  }
+
+  // ═══ 常磐市 (y:4-10) ═══
+  for(let x=10;x<30;x++){map[8][x]=1;map[9][x]=1;}
+  // 宝可梦中心
+  for(let y=5;y<8;y++)for(let x=12;x<18;x++) map[y][x]=5;
+  for(let x=12;x<18;x++) map[4][x]=7;
+  map[7][14]=6;map[7][15]=6;
+  // 商店
+  for(let y=5;y<8;y++)for(let x=22;x<28;x++) map[y][x]=5;
+  for(let x=22;x<28;x++) map[4][x]=7;
+  map[7][24]=6;map[7][25]=6;
+
+  // 水域
+  for(let y=15;y<20;y++)for(let x=3;x<10;x++) map[y][x]=4;
+  for(let y=32;y<36;y++)for(let x=30;x<38;x++) map[y][x]=4;
+}
+initMap();
+
+// ═══════ 游戏状态 ═══════
+let gameState='title';// title,starter,overworld,battle,dialog,bag,pokemonMenu
+let player={x:20,y:44,dir:0,moving:false,moveT:0,frame:0,frameT:0};// dir:0下1上2左3右
+let party=[];// 队伍宝可梦
+let bag={pokeball:5,potion:3,superball:0};
+let camera={x:0,y:0};
+let dialogText='';let dialogQueue=[];let dialogCb=null;
+let battleState=null;
+let encounterCooldown=0;
+let starterChosen=false;
+let keys={};
+let titleFrame=0;
+
+// NPC数据
+const npcs=[
+  {x:27,y:45,dir:0,name:'大木博士',sprite:'prof',dialog:['欢迎来到宝可梦的世界！','这个世界到处都是宝可梦。','选择你的搭档宝可梦吧！'],starterTrigger:true},
+  {x:12,y:48,dir:0,name:'妈妈',sprite:'mom',dialog:['出门要小心哦！','记得给宝可梦吃药！']},
+  {x:15,y:8,dir:2,name:'护士',sprite:'nurse',dialog:['欢迎来到宝可梦中心！','我来帮你的宝可梦恢复体力。'],heal:true},
+  {x:25,y:8,dir:2,name:'店员',sprite:'clerk',dialog:['欢迎光临！','精灵球 200元 | 伤药 300元']},
+];
+
+// ═══════ 创建宝可梦实例 ═══════
+function makePokemon(id,level){
+  const base=POKEMON.find(p=>p.id===id);if(!base)return null;
+  const lvMul=1+(level-1)*0.05;
+  const p={
+    id:base.id,name:base.name,type:base.type,level:level,
+    maxHp:Math.floor(base.hp*lvMul),hp:Math.floor(base.hp*lvMul),
+    atk:Math.floor(base.atk*lvMul),def:Math.floor(base.def*lvMul),spd:Math.floor(base.spd*lvMul),
+    exp:0,expNext:level*level*3+10,
+    moves:base.moves.slice(0,2+Math.min(Math.floor(level/8),2)),
+    color:base.color,color2:base.color2,spot:base.spot,
+    evolution:base.evolution
+  };
+  return p;
+}
+
+// ═══════ 输入处理 ═══════
+document.addEventListener('keydown',e=>{keys[e.code]=true;e.preventDefault();});
+document.addEventListener('keyup',e=>{keys[e.code]=false;});
+function kp(k){const v=keys[k];keys[k]=false;return v;}
+
+// ═══════ 绘制像素精灵 ═══════
+function drawPlayer(x,y,dir,frame){
+  const s=TILE;
+  ctx.save();ctx.translate(x,y);
+  // 身体
+  const legOff=frame%2===1?2:0;
+  // 帽子
+  ctx.fillStyle=COL.hat;
+  ctx.fillRect(2,0,12,4);
+  if(dir===3)ctx.fillRect(12,1,3,3);
+  if(dir===2)ctx.fillRect(-1,1,3,3);
+  // 头发
+  ctx.fillStyle=COL.hair;
+  ctx.fillRect(3,3,10,3);
+  // 脸
+  ctx.fillStyle=COL.skin;
+  ctx.fillRect(4,4,8,5);
+  // 眼睛
+  if(dir!==1){
+    ctx.fillStyle='#222';
+    if(dir===0){ctx.fillRect(5,5,2,2);ctx.fillRect(9,5,2,2);}
+    if(dir===2){ctx.fillRect(4,5,2,2);ctx.fillRect(8,5,2,2);}
+    if(dir===3){ctx.fillRect(6,5,2,2);ctx.fillRect(10,5,2,2);}
+  }
+  // 上衣
+  ctx.fillStyle=COL.shirt;
+  ctx.fillRect(3,9,10,5);
+  // 背包
+  if(dir===2){ctx.fillStyle=COL.bag;ctx.fillRect(11,9,3,4);}
+  if(dir===3){ctx.fillStyle=COL.bag;ctx.fillRect(2,9,3,4);}
+  // 裤子
+  ctx.fillStyle=COL.pants;
+  ctx.fillRect(4,14-legOff,4,3+legOff);
+  ctx.fillRect(8,14+legOff,4,3-legOff);
+  // 鞋
+  ctx.fillStyle=COL.shoe;
+  ctx.fillRect(4,16,4,1);ctx.fillRect(8,16,4,1);
+  ctx.restore();
+}
+
+// ═══ 小火龙像素精灵 ═══
+const CHAR_PAL=['','#000','#E88830','#D07020','#F0A050','#40A840','#fff','#E03020','#F8D030','#8B5530','#C05818'];
+const CHAR_PIX=[
+ [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],
+ [0,0,0,0,0,1,2,2,2,1,0,0,0,0,0],
+ [0,0,0,0,1,2,2,2,2,2,1,0,0,0,0],
+ [0,0,0,0,1,2,5,2,2,2,1,0,0,0,0],
+ [0,0,0,1,2,2,2,2,2,2,1,0,0,0,0],
+ [0,0,0,1,2,2,2,2,2,1,0,0,1,1,0],
+ [0,0,1,2,2,4,4,2,2,1,0,1,7,1,0],
+ [0,0,1,2,4,10,4,2,1,0,1,8,7,1,0],
+ [0,0,1,2,4,3,4,2,1,0,1,8,1,0,0],
+ [0,0,1,2,4,3,4,1,0,1,8,1,0,0,0],
+ [0,0,0,1,2,2,1,0,0,1,1,0,0,0,0],
+ [0,0,0,1,2,1,1,0,0,0,0,0,0,0,0],
+ [0,0,1,9,1,0,1,6,1,0,0,0,0,0,0],
+ [0,0,1,1,0,0,1,1,0,0,0,0,0,0,0],
+];
+function drawCharmander(x,y,size,flip){
+  ctx.save();ctx.translate(x,y);
+  if(flip){ctx.scale(-1,1);ctx.translate(-size,0);}
+  const pw=CHAR_PIX[0].length,ph=CHAR_PIX.length;
+  const ps=size/Math.max(pw,ph);
+  for(let py=0;py<ph;py++){
+    for(let px=0;px<pw;px++){
+      const c=CHAR_PIX[py][px];
+      if(c===0)continue;
+      ctx.fillStyle=CHAR_PAL[c];
+      ctx.fillRect(Math.floor(px*ps),Math.floor(py*ps),Math.ceil(ps),Math.ceil(ps));
+    }
+  }
+  ctx.restore();
+}
+
+function drawPokemonSprite(x,y,poke,size,flip){
+  // 小火龙用像素精灵
+  if(poke.id===4||poke.id===5||poke.id===6){drawCharmander(x,y,size,flip);return;}
+  ctx.save();ctx.translate(x,y);
+  if(flip){ctx.scale(-1,1);ctx.translate(-size,0);}
+  const s=size;
+  // 身体(椭圆)
+  ctx.fillStyle=poke.color;
+  ctx.beginPath();ctx.ellipse(s/2,s*.55,s*.4,s*.4,0,0,Math.PI*2);ctx.fill();
+  // 肚子
+  ctx.fillStyle=poke.spot||poke.color2;
+  ctx.beginPath();ctx.ellipse(s/2,s*.6,s*.25,s*.28,0,0,Math.PI*2);ctx.fill();
+  // 头
+  ctx.fillStyle=poke.color;
+  ctx.beginPath();ctx.ellipse(s/2,s*.28,s*.32,s*.28,0,0,Math.PI*2);ctx.fill();
+  // 眼睛
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(s*.35,s*.22,s*.08,s*.09,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.65,s*.22,s*.08,s*.09,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#111';
+  ctx.beginPath();ctx.arc(s*.37,s*.23,s*.04,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.67,s*.23,s*.04,0,Math.PI*2);ctx.fill();
+  // 嘴
+  ctx.fillStyle=poke.color2;
+  ctx.beginPath();ctx.arc(s/2,s*.38,s*.06,0,Math.PI);ctx.fill();
+  // 耳朵/角
+  ctx.fillStyle=poke.color;
+  ctx.beginPath();ctx.moveTo(s*.2,s*.12);ctx.lineTo(s*.1,0);ctx.lineTo(s*.3,s*.1);ctx.fill();
+  ctx.beginPath();ctx.moveTo(s*.8,s*.12);ctx.lineTo(s*.9,0);ctx.lineTo(s*.7,s*.1);ctx.fill();
+  // 脚
+  ctx.fillStyle=poke.color2;
+  ctx.fillRect(s*.25,s*.85,s*.15,s*.12);
+  ctx.fillRect(s*.6,s*.85,s*.15,s*.12);
+  // 尾巴
+  ctx.fillStyle=poke.color;
+  ctx.beginPath();ctx.moveTo(s*.85,s*.5);ctx.quadraticCurveTo(s*1.1,s*.3,s*.95,s*.15);ctx.lineWidth=s*.06;ctx.strokeStyle=poke.color;ctx.stroke();
+  ctx.restore();
+}
+
+function drawTile(tx,ty,type,screenX,screenY){
+  const s=TILE;
+  switch(type){
+    case 0:// 草地
+      ctx.fillStyle=COL.grass;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.grassLight;
+      if((tx+ty)%3===0){ctx.fillRect(screenX+4,screenY+3,2,3);ctx.fillRect(screenX+10,screenY+9,2,3);}
+      break;
+    case 1:// 路
+      ctx.fillStyle=COL.path;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.pathDark;
+      if((tx+ty)%4===0)ctx.fillRect(screenX+2,screenY+6,3,2);
+      break;
+    case 2:// 草丛
+      ctx.fillStyle=COL.darkgreen;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.grassLight;
+      for(let i=0;i<3;i++){
+        const gx=screenX+2+i*5,gy=screenY+s-6;
+        ctx.fillRect(gx,gy,1,5);ctx.fillRect(gx-1,gy+1,1,3);ctx.fillRect(gx+1,gy+1,1,3);
+      }
+      break;
+    case 3:// 树
+      ctx.fillStyle=COL.grass;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.treeDark;ctx.fillRect(screenX+5,screenY+8,6,8);
+      ctx.fillStyle=COL.tree;
+      ctx.beginPath();ctx.arc(screenX+8,screenY+6,7,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#2a7a3a';
+      ctx.beginPath();ctx.arc(screenX+6,screenY+4,4,0,Math.PI*2);ctx.fill();
+      break;
+    case 4:// 水
+      ctx.fillStyle=COL.water;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.waterLight;
+      const wt=Date.now()/500;
+      ctx.fillRect(screenX+Math.sin(wt+tx)*3+4,screenY+4,6,1);
+      ctx.fillRect(screenX+Math.cos(wt+ty)*3+2,screenY+10,5,1);
+      break;
+    case 5:// 墙
+      ctx.fillStyle=COL.wall;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.wallDark;
+      ctx.fillRect(screenX,screenY+s-1,s,1);ctx.fillRect(screenX+s-1,screenY,1,s);
+      break;
+    case 6:// 门
+      ctx.fillStyle=COL.wall;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle=COL.door;ctx.fillRect(screenX+2,screenY+2,s-4,s-2);
+      ctx.fillStyle='#c0a030';ctx.fillRect(screenX+s-5,screenY+8,2,2);
+      break;
+    case 7:// 屋顶
+      ctx.fillStyle=COL.roof;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle='#a02020';
+      ctx.fillRect(screenX,screenY+s-2,s,2);
+      break;
+    case 8:// 围栏
+      ctx.fillStyle=COL.grass;ctx.fillRect(screenX,screenY,s,s);
+      ctx.fillStyle='#8b6e4e';
+      ctx.fillRect(screenX,screenY+4,s,3);ctx.fillRect(screenX,screenY+11,s,3);
+      ctx.fillRect(screenX+2,screenY+2,2,14);ctx.fillRect(screenX+12,screenY+2,2,14);
+      break;
+    case 9:// 花
+      ctx.fillStyle=COL.grass;ctx.fillRect(screenX,screenY,s,s);
+      const fc=['#ff6666','#ffaa33','#ff66aa','#aa66ff','#66aaff'];
+      ctx.fillStyle=fc[(tx*3+ty*7)%fc.length];
+      ctx.beginPath();ctx.arc(screenX+5,screenY+5,3,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(screenX+11,screenY+11,3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ffee44';
+      ctx.fillRect(screenX+4,screenY+4,2,2);ctx.fillRect(screenX+10,screenY+10,2,2);
+      break;
+  }
+}
+
+// ═══════ 对话系统 ═══════
+function showDialog(texts,cb){
+  dialogQueue=texts.slice();dialogText=dialogQueue.shift();
+  gameState='dialog';dialogCb=cb||null;
+}
+function advanceDialog(){
+  if(dialogQueue.length>0){dialogText=dialogQueue.shift();}
+  else{gameState='overworld';if(dialogCb){dialogCb();dialogCb=null;}}
+}
+function drawDialog(){
+  // 对话框
+  ctx.fillStyle='rgba(0,0,0,.85)';
+  ctx.fillRect(10,H-70,W-20,60);
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;
+  ctx.strokeRect(12,H-68,W-24,56);
+  ctx.fillStyle='#fff';ctx.font='14px "Courier New"';
+  ctx.fillText(dialogText,24,H-42);
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='10px "Courier New"';
+  ctx.fillText('▼ Z继续',W-80,H-18);
+}
+
+// ═══════ 标题画面 ═══════
+function drawTitle(){
+  titleFrame++;
+  // 背景
+  ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,W,H);
+  // 星星
+  for(let i=0;i<30;i++){
+    const sx=(i*73+titleFrame*.3)%W,sy=(i*47+Math.sin(titleFrame*.02+i)*10)%H;
+    ctx.fillStyle=`rgba(255,255,255,${.3+Math.sin(titleFrame*.05+i)*.3})`;
+    ctx.fillRect(sx,sy,2,2);
+  }
+  // 标题
+  ctx.fillStyle='#ffd740';ctx.font='bold 36px "Courier New"';
+  ctx.textAlign='center';
+  ctx.fillText('宝 可 梦',W/2,100);
+  ctx.fillStyle='#fff';ctx.font='16px "Courier New"';
+  ctx.fillText('P O K É M O N',W/2,130);
+  // 皮卡丘
+  const py=160+Math.sin(titleFrame*.03)*5;
+  drawPokemonSprite(W/2-30,py,POKEMON[12],60,false);
+  // 按键提示
+  ctx.fillStyle=titleFrame%60<40?'#fff':'transparent';
+  ctx.font='14px "Courier New"';
+  ctx.fillText('按 Z 开始游戏',W/2,280);
+  ctx.textAlign='left';
+}
+
+// ═══════ 选初始宝可梦 ═══════
+let starterSel=0;
+function drawStarterSelect(){
+  ctx.fillStyle='#1a2a3a';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.font='bold 18px "Courier New"';ctx.textAlign='center';
+  ctx.fillText('选择你的搭档宝可梦！',W/2,40);
+
+  const starters=[POKEMON[0],POKEMON[3],POKEMON[6]];// 妙蛙种子,小火龙,杰尼龟
+  for(let i=0;i<3;i++){
+    const bx=60+i*140,by=70;
+    // 选中高亮
+    if(i===starterSel){
+      ctx.strokeStyle='#ffd740';ctx.lineWidth=3;
+      ctx.strokeRect(bx-5,by-5,120,200);
+    }
+    // 精灵球底座
+    ctx.fillStyle='rgba(255,255,255,.1)';
+    ctx.beginPath();ctx.ellipse(bx+55,by+130,40,10,0,0,Math.PI*2);ctx.fill();
+    // 宝可梦
+    drawPokemonSprite(bx+15,by+30,starters[i],80,false);
+    // 名字
+    ctx.fillStyle='#fff';ctx.font='14px "Courier New"';
+    ctx.fillText(starters[i].name,bx+55,by+160);
+    // 属性
+    ctx.fillStyle=starters[i].type==='草'?'#4a8c5c':starters[i].type==='火'?'#e87040':'#5a9acd';
+    ctx.font='12px "Courier New"';
+    ctx.fillText(starters[i].type+'属性',bx+55,by+180);
+  }
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='11px "Courier New"';
+  ctx.fillText('← → 选择  |  Z 确认',W/2,H-20);
+  ctx.textAlign='left';
+}
+
+// ═══════ 战斗系统 ═══════
+let battleMenu=0,battleSel=0,battleMoveSel=0,battleLog=[],battleLogT=0;
+let battleAnim={type:null,t:0,x:0,y:0};
+let battlePhase='menu';// menu,movesel,anim,log,catch,run,win,lose
+
+function startBattle(wildPoke){
+  battleState={
+    wild:wildPoke,myPoke:party[0],
+    turn:0,phase:'intro'
+  };
+  battleMenu=0;battleSel=0;battleMoveSel=0;
+  battleLog=['野生的 '+wildPoke.name+' 出现了！'];battleLogT=60;
+  battlePhase='log';
+  gameState='battle';
+}
+
+function calcDamage(attacker,defender,move){
+  const m=MOVES[move];if(!m||m.power===0)return 0;
+  let eff=1;
+  if(TYPE_EFFECT[m.type]&&TYPE_EFFECT[m.type][defender.type])eff=TYPE_EFFECT[m.type][defender.type];
+  const stab=m.type===attacker.type?1.5:1;
+  const dmg=Math.floor(((2*attacker.level/5+2)*m.power*attacker.atk/defender.def/50+2)*stab*eff*(0.85+Math.random()*0.15));
+  return{dmg:Math.max(1,dmg),eff:eff};
+}
+
+function doBattleMove(attacker,defender,move,isPlayer){
+  const m=MOVES[move];
+  if(!m)return;
+  // 命中判定
+  if(Math.random()*100>m.acc){
+    battleLog.push((isPlayer?attacker.name:('野生'+attacker.name))+' 的攻击没有命中！');
+    battleLogT=50;battlePhase='log';return;
+  }
+  if(m.power>0){
+    const{dmg,eff}=calcDamage(attacker,defender,move);
+    defender.hp=Math.max(0,defender.hp-dmg);
+    battleLog.push((isPlayer?attacker.name:('野生'+attacker.name))+' 使用了 '+move+'！');
+    if(eff>1)battleLog.push('效果拔群！');
+    else if(eff<1&&eff>0)battleLog.push('效果不太好...');
+    else if(eff===0)battleLog.push('没有效果...');
+  }else{
+    battleLog.push((isPlayer?attacker.name:('野生'+attacker.name))+' 使用了 '+move+'！');
+    if(m.effect==='heal'){attacker.hp=Math.min(attacker.maxHp,attacker.hp+Math.floor(attacker.maxHp/2));battleLog.push(attacker.name+' 恢复了体力！');}
+    if(m.effect==='defUp'){attacker.def=Math.floor(attacker.def*1.3);battleLog.push(attacker.name+' 的防御提升了！');}
+    if(m.effect==='atkDown'){defender.atk=Math.max(1,Math.floor(defender.atk*0.7));battleLog.push(defender.name+' 的攻击下降了！');}
+  }
+  battleLogT=50;battlePhase='log';
+}
+
+function battleUpdate(){
+  if(battlePhase==='log'){
+    battleLogT--;
+    if(battleLogT<=0&&kp('KeyZ')){
+      battleLog.shift();
+      if(battleLog.length>0){battleLogT=50;}
+      else{
+        // 检查胜负
+        if(battleState.wild.hp<=0){
+          if(!battleState.rewarded){
+            battleState.rewarded=true;
+            const expGain=Math.floor(battleState.wild.level*15+20);
+            battleState.myPoke.exp+=expGain;
+            battleLog.push('获得了 '+expGain+' 经验值！');
+            if(battleState.myPoke.exp>=battleState.myPoke.expNext){
+              battleState.myPoke.level++;
+              battleState.myPoke.exp=0;
+              battleState.myPoke.expNext=battleState.myPoke.level*battleState.myPoke.level*3+10;
+              const base=POKEMON.find(p=>p.id===battleState.myPoke.id);
+              const lvMul=1+(battleState.myPoke.level-1)*0.05;
+              battleState.myPoke.maxHp=Math.floor(base.hp*lvMul);
+              battleState.myPoke.hp=battleState.myPoke.maxHp;
+              battleState.myPoke.atk=Math.floor(base.atk*lvMul);
+              battleState.myPoke.def=Math.floor(base.def*lvMul);
+              battleState.myPoke.spd=Math.floor(base.spd*lvMul);
+              if(battleState.myPoke.moves.length<4&&base.moves.length>battleState.myPoke.moves.length){
+                const newMove=base.moves[battleState.myPoke.moves.length];
+                battleState.myPoke.moves.push(newMove);
+                battleLog.push(battleState.myPoke.name+' 学会了 '+newMove+'！');
+              }
+              battleLog.push(battleState.myPoke.name+' 升级到了 Lv.'+battleState.myPoke.level+'！');
+              if(battleState.myPoke.evolution&&battleState.myPoke.level>=battleState.myPoke.evolution.level){
+                const evoBase=POKEMON.find(p=>p.id===battleState.myPoke.evolution.to);
+                if(evoBase){
+                  battleLog.push(battleState.myPoke.name+' 进化成了 '+evoBase.name+'！');
+                  battleState.myPoke.id=evoBase.id;
+                  battleState.myPoke.name=evoBase.name;
+                  battleState.myPoke.color=evoBase.color;
+                  battleState.myPoke.color2=evoBase.color2;
+                  battleState.myPoke.spot=evoBase.spot;
+                  battleState.myPoke.evolution=evoBase.evolution;
+                }
+              }
+            }
+            battleLogT=50;battlePhase='log';
+          }else{
+            // 经验已结算，结束战斗
+            gameState='overworld';encounterCooldown=60;
+          }
+          return;
+        }
+        if(battleState.myPoke.hp<=0){
+          if(!battleState.lost){
+            battleState.lost=true;
+            battleLog.push(battleState.myPoke.name+' 倒下了...');
+            battleLogT=50;battlePhase='log';
+          }else{
+            battleState.myPoke.hp=Math.floor(battleState.myPoke.maxHp/2);
+            gameState='overworld';
+            showDialog(['你的宝可梦全部倒下了...','回到了宝可梦中心。']);
+            player.x=15;player.y=8;
+          }
+          return;
+        }
+        battlePhase='menu';
+      }
+    }
+    return;
+  }
+  if(battlePhase==='menu'){
+    if(kp('ArrowDown'))battleSel=(battleSel+1)%4;
+    if(kp('ArrowUp'))battleSel=(battleSel+3)%4;
+    if(kp('KeyZ')){
+      if(battleSel===0)battlePhase='movesel';// 战斗
+      if(battleSel===1){// 背包
+        if(bag.pokeball>0){
+          bag.pokeball--;
+          const catchRate=Math.max(10,(100-battleState.wild.hp/battleState.wild.maxHp*80)*1.5);
+          if(Math.random()*100<catchRate){
+            if(party.length<6)party.push({...battleState.wild});
+            battleLog.push('成功捕获了 '+battleState.wild.name+'！');
+            battleState.wild.hp=0;
+          }else{
+            battleLog.push('啊！差一点就抓到了！');
+            // 敌方回合
+            const eMoves=battleState.wild.moves;
+            const eMove=eMoves[Math.floor(Math.random()*eMoves.length)];
+            doBattleMove(battleState.wild,battleState.myPoke,eMove,false);
+          }
+          battleLogT=50;battlePhase='log';
+        }else{battleLog.push('没有精灵球了！');battleLogT=50;battlePhase='log';}
+      }
+      if(battleSel===2){// 宝可梦(切换)
+        battleLog.push('目前只有一只宝可梦。');battleLogT=40;battlePhase='log';
+      }
+      if(battleSel===3){// 逃跑
+        if(Math.random()<.7){
+          battleLog.push('成功逃跑了！');battleLogT=40;battlePhase='log';
+          battleState.wild.hp=0;// 标记结束
+        }else{
+          battleLog.push('逃跑失败！');
+          const eMoves=battleState.wild.moves;
+          const eMove=eMoves[Math.floor(Math.random()*eMoves.length)];
+          doBattleMove(battleState.wild,battleState.myPoke,eMove,false);
+          battleLogT=50;battlePhase='log';
+        }
+      }
+    }
+  }
+  if(battlePhase==='movesel'){
+    const moves=battleState.myPoke.moves;
+    if(kp('ArrowDown'))battleMoveSel=(battleMoveSel+1)%moves.length;
+    if(kp('ArrowUp'))battleMoveSel=(battleMoveSel+moves.length-1)%moves.length;
+    if(kp('KeyX')){battlePhase='menu';return;}
+    if(kp('KeyZ')){
+      const myMove=moves[battleMoveSel];
+      // 先手判定
+      const myFirst=battleState.myPoke.spd>=battleState.wild.spd;
+      if(myFirst){
+        doBattleMove(battleState.myPoke,battleState.wild,myMove,true);
+        if(battleState.wild.hp>0){
+          const eMoves=battleState.wild.moves;
+          const eMove=eMoves[Math.floor(Math.random()*eMoves.length)];
+          doBattleMove(battleState.wild,battleState.myPoke,eMove,false);
+        }
+      }else{
+        const eMoves=battleState.wild.moves;
+        const eMove=eMoves[Math.floor(Math.random()*eMoves.length)];
+        doBattleMove(battleState.wild,battleState.myPoke,eMove,false);
+        if(battleState.myPoke.hp>0){
+          doBattleMove(battleState.myPoke,battleState.wild,myMove,true);
+        }
+      }
+      battleLogT=50;battlePhase='log';
+    }
+  }
+}
+
+function drawBattle(){
+  // 背景
+  ctx.fillStyle='#88cc88';ctx.fillRect(0,0,W,H/2);
+  ctx.fillStyle='#c8e8a0';ctx.fillRect(0,H/2-20,W,20);
+  ctx.fillStyle='#f0e8d0';ctx.fillRect(0,H/2,W,H/2);
+  // 地面
+  ctx.fillStyle='#a0d080';
+  ctx.beginPath();ctx.ellipse(120,H/2-10,60,15,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#d8c8a0';
+  ctx.beginPath();ctx.ellipse(W-130,H/2+50,60,15,0,0,Math.PI*2);ctx.fill();
+
+  const wp=battleState.wild,mp=battleState.myPoke;
+  // 野生宝可梦(右上)
+  if(wp.hp>0)drawPokemonSprite(280,30,wp,80,false);
+  // 我方宝可梦(左下)
+  drawPokemonSprite(60,H/2+10,mp,90,true);
+
+  // 敌方HP条
+  ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(20,20,180,50);
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(20,20,180,50);
+  ctx.fillStyle='#fff';ctx.font='12px "Courier New"';
+  ctx.fillText(wp.name+' Lv.'+wp.level,30,38);
+  ctx.fillStyle='#333';ctx.fillRect(30,45,150,10);
+  const whp=Math.max(0,wp.hp/wp.maxHp);
+  ctx.fillStyle=whp>.5?'#4caf50':whp>.2?'#ff9800':'#f44336';
+  ctx.fillRect(30,45,150*whp,10);
+
+  // 我方HP条
+  ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(W-210,H/2+5,190,55);
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(W-210,H/2+5,190,55);
+  ctx.fillStyle='#fff';ctx.font='12px "Courier New"';
+  ctx.fillText(mp.name+' Lv.'+mp.level,W-200,H/2+22);
+  ctx.fillStyle='#333';ctx.fillRect(W-200,H/2+28,160,10);
+  const mhp=Math.max(0,mp.hp/mp.maxHp);
+  ctx.fillStyle=mhp>.5?'#4caf50':mhp>.2?'#ff9800':'#f44336';
+  ctx.fillRect(W-200,H/2+28,160*mhp,10);
+  ctx.fillStyle='#fff';ctx.font='10px "Courier New"';
+  ctx.fillText(mp.hp+'/'+mp.maxHp,W-200,H/2+52);
+  // 经验条
+  ctx.fillStyle='#333';ctx.fillRect(W-200,H/2+42,160,4);
+  ctx.fillStyle='#3498db';ctx.fillRect(W-200,H/2+42,160*(mp.exp/mp.expNext),4);
+
+  // 菜单/对话
+  if(battlePhase==='log'&&battleLog.length>0){
+    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(10,H-60,W-20,50);
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,H-58,W-24,46);
+    ctx.fillStyle='#fff';ctx.font='13px "Courier New"';
+    ctx.fillText(battleLog[0],24,H-32);
+  }
+  if(battlePhase==='menu'){
+    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(W-160,H-90,150,80);
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(W-158,H-88,146,76);
+    const opts=['战斗','背包','宝可梦','逃跑'];
+    for(let i=0;i<4;i++){
+      ctx.fillStyle=i===battleSel?'#ffd740':'#fff';
+      ctx.font='13px "Courier New"';
+      const ox=i%2*70,oy=Math.floor(i/2)*28;
+      ctx.fillText((i===battleSel?'▶ ':' ')+opts[i],W-150+ox,H-66+oy);
+    }
+    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(10,H-60,W-180,50);
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,H-58,W-184,46);
+    ctx.fillStyle='#fff';ctx.font='13px "Courier New"';
+    ctx.fillText('要怎么做？',24,H-32);
+  }
+  if(battlePhase==='movesel'){
+    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(10,H-90,W-20,80);
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,H-88,W-24,76);
+    const moves=mp.moves;
+    for(let i=0;i<moves.length;i++){
+      const m=MOVES[moves[i]];
+      ctx.fillStyle=i===battleMoveSel?'#ffd740':'#fff';
+      ctx.font='13px "Courier New"';
+      const ox=i%2*200,oy=Math.floor(i/2)*25;
+      ctx.fillText((i===battleMoveSel?'▶ ':' ')+moves[i]+(m?' ('+m.type+')':''),24+ox,H-66+oy);
+    }
+  }
+}
+
+// ═══════ 大世界更新 ═══════
+function overworldUpdate(dt){
+  if(encounterCooldown>0)encounterCooldown--;
+
+  if(!player.moving){
+    let dx=0,dy=0;
+    if(keys['ArrowDown']){dy=1;player.dir=0;}
+    else if(keys['ArrowUp']){dy=-1;player.dir=1;}
+    else if(keys['ArrowLeft']){dx=-1;player.dir=2;}
+    else if(keys['ArrowRight']){dx=1;player.dir=3;}
+
+    if(dx!==0||dy!==0){
+      const nx=player.x+dx,ny=player.y+dy;
+      // 碰撞检测
+      if(nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H){
+        const tile=map[ny][nx];
+        const blocked=tile===3||tile===4||tile===5||tile===7||tile===8;
+        // NPC碰撞
+        let npcBlock=false;
+        for(const n of npcs){if(n.x===nx&&n.y===ny){npcBlock=true;break;}}
+        if(!blocked&&!npcBlock){
+          player.moving=true;player.moveT=0;
+          player.targetX=nx;player.targetY=ny;
+        }
+      }
+    }
+
+    // Z键交互
+    if(kp('KeyZ')){
+      const fx=player.x+[0,0,-1,1][player.dir];
+      const fy=player.y+[1,-1,0,0][player.dir];
+      // NPC对话
+      for(const n of npcs){
+        if(n.x===fx&&n.y===fy){
+          if(n.heal){
+            showDialog(n.dialog,()=>{party.forEach(p=>{p.hp=p.maxHp;});showDialog(['你的宝可梦恢复了体力！']);});
+          }else if(n.starterTrigger&&!starterChosen){
+            showDialog(n.dialog,()=>{gameState='starter';});
+          }else{
+            showDialog(n.dialog);
+          }
+          break;
+        }
+      }
+    }
+  }else{
+    player.moveT+=0.15;
+    if(player.moveT>=1){
+      player.x=player.targetX;player.y=player.targetY;
+      player.moving=false;player.moveT=0;
+      player.frame++;
+
+      // 草丛遇敌
+      if(map[player.y][player.x]===2&&encounterCooldown<=0&&party.length>0){
+        if(Math.random()<0.15){
+          // 根据区域决定野生宝可梦
+          const wildPool=player.y<20?[10,12,13,15,16]:[10,12,15,18,19,20];
+          const wId=wildPool[Math.floor(Math.random()*wildPool.length)];
+          const wLv=Math.max(2,Math.floor(3+Math.random()*5+(35-player.y)*0.2));
+          const wild=makePokemon(wId,wLv);
+          startBattle(wild);
+        }
+      }
+    }
+  }
+
+  // 相机跟随
+  const px=(player.moving?player.x+(player.targetX-player.x)*player.moveT:player.x)*TILE;
+  const py=(player.moving?player.y+(player.targetY-player.y)*player.moveT:player.y)*TILE;
+  camera.x=px-W/2+TILE/2;
+  camera.y=py-H/2+TILE/2;
+}
+
+function drawOverworld(){
+  // 绘制地图
+  const startTX=Math.floor(camera.x/TILE)-1;
+  const startTY=Math.floor(camera.y/TILE)-1;
+  const endTX=startTX+Math.ceil(W/TILE)+2;
+  const endTY=startTY+Math.ceil(H/TILE)+2;
+
+  for(let ty=startTY;ty<=endTY;ty++){
+    for(let tx=startTX;tx<=endTX;tx++){
+      if(tx<0||tx>=MAP_W||ty<0||ty>=MAP_H){
+        ctx.fillStyle=COL.tree;ctx.fillRect(tx*TILE-camera.x,ty*TILE-camera.y,TILE,TILE);
+        continue;
+      }
+      drawTile(tx,ty,map[ty][tx],tx*TILE-camera.x,ty*TILE-camera.y);
+    }
+  }
+
+  // 绘制NPC
+  for(const n of npcs){
+    const sx=n.x*TILE-camera.x,sy=n.y*TILE-camera.y;
+    if(sx<-20||sx>W+20||sy<-20||sy>H+20)continue;
+    // 简单NPC精灵
+    ctx.fillStyle=n.sprite==='prof'?'#fff':n.sprite==='mom'?'#ff8888':n.sprite==='nurse'?'#ff6699':'#6699ff';
+    ctx.fillRect(sx+3,sy+1,10,6);// 头
+    ctx.fillStyle=COL.skin;ctx.fillRect(sx+4,sy+3,8,4);// 脸
+    ctx.fillStyle=n.sprite==='prof'?'#887766':n.sprite==='mom'?'#cc6666':'#fff';
+    ctx.fillRect(sx+3,sy+7,10,6);// 身体
+    ctx.fillStyle='#222';ctx.fillRect(sx+4,sy+13,3,3);ctx.fillRect(sx+9,sy+13,3,3);// 脚
+    // 眼睛
+    ctx.fillStyle='#111';ctx.fillRect(sx+5,sy+4,2,2);ctx.fillRect(sx+9,sy+4,2,2);
+  }
+
+  // 绘制玩家
+  const ppx=(player.moving?player.x+(player.targetX-player.x)*player.moveT:player.x)*TILE-camera.x;
+  const ppy=(player.moving?player.y+(player.targetY-player.y)*player.moveT:player.y)*TILE-camera.y;
+  drawPlayer(ppx,ppy,player.dir,player.frame);
+
+  // 区域名称
+  let areaName='';
+  if(player.y>=35)areaName='真新镇';
+  else if(player.y>=10)areaName='1号道路';
+  else areaName='常磐市';
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,W,20);
+  ctx.fillStyle='#fff';ctx.font='11px "Courier New"';ctx.fillText('  '+areaName+'  |  精灵球:'+bag.pokeball+'  伤药:'+bag.potion,5,14);
+  if(party.length>0){
+    const p=party[0];
+    ctx.fillText(p.name+' Lv.'+p.level+' HP:'+p.hp+'/'+p.maxHp,W-200,14);
+  }
+}
+
+// ═══════ 主循环 ═══════
+function loop(){
+  requestAnimationFrame(loop);
+  ctx.clearRect(0,0,W,H);
+
+  if(gameState==='title'){
+    drawTitle();
+    if(kp('KeyZ')){
+      gameState='overworld';
+      showDialog(['大木博士: 欢迎来到宝可梦的世界！','这个世界里住着很多宝可梦。','去研究所找我选择你的搭档吧！']);
+    }
+  }
+  else if(gameState==='starter'){
+    drawStarterSelect();
+    if(kp('ArrowLeft'))starterSel=(starterSel+2)%3;
+    if(kp('ArrowRight'))starterSel=(starterSel+1)%3;
+    if(kp('KeyZ')){
+      const starterIds=[1,4,7];
+      const starter=makePokemon(starterIds[starterSel],5);
+      party.push(starter);
+      starterChosen=true;
+      gameState='overworld';
+      showDialog(['你选择了 '+starter.name+'！','好好照顾它吧！','去1号道路冒险吧！']);
+    }
+  }
+  else if(gameState==='overworld'){
+    overworldUpdate(1/60);
+    drawOverworld();
+  }
+  else if(gameState==='dialog'){
+    drawOverworld();
+    drawDialog();
+    if(kp('KeyZ'))advanceDialog();
+  }
+  else if(gameState==='battle'){
+    drawBattle();
+    battleUpdate();
+  }
+}
+loop();
+</script>
+</body>
+</html>

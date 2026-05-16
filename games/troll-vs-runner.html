@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Troll vs Runner - 整蛊跑酷</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden}
+canvas{border:2px solid #333;border-radius:8px}
+#lobby{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a2e,#1a0a2e);z-index:10}
+#lobby h1{font-size:42px;letter-spacing:4px;background:linear-gradient(135deg,#ff4444,#ff8844,#44aaff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+#lobby .sub{color:rgba(255,255,255,.4);font-size:14px;margin-bottom:30px;letter-spacing:2px}
+.btn{padding:12px 30px;font-size:16px;border:none;border-radius:6px;cursor:pointer;letter-spacing:2px;font-weight:700;margin:5px;transition:all .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn-red{background:#e74c3c;color:#fff}.btn-blue{background:#3498db;color:#fff}
+.btn-green{background:#27ae60;color:#fff}.btn-orange{background:#e67e22;color:#fff}
+.btn-purple{background:#8e44ad;color:#fff}
+input{padding:10px 16px;font-size:18px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:6px;text-align:center;letter-spacing:3px;width:200px}
+.room-code{color:#ffd740;font-size:32px;letter-spacing:6px;font-weight:700;margin:10px 0}
+.info{color:rgba(255,255,255,.4);font-size:12px;margin-top:6px}
+.role-box{display:inline-block;padding:20px 30px;border:2px solid rgba(255,255,255,.15);border-radius:10px;margin:8px;cursor:pointer;transition:all .15s;text-align:center}
+.role-box:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
+.role-box.selected{border-color:#ffd740;background:rgba(255,215,0,.1)}
+.role-icon{font-size:40px;margin-bottom:8px}
+.role-name{font-size:18px;font-weight:700;letter-spacing:2px}
+.role-desc{font-size:11px;color:rgba(255,255,255,.4);margin-top:4px}
+#gameHud{position:fixed;top:10px;left:0;right:0;display:flex;justify-content:center;gap:20px;pointer-events:none;z-index:5}
+.hud-item{background:rgba(0,0,0,.7);padding:6px 14px;border-radius:4px;font-size:14px}
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>TROLL VS RUNNER</h1>
+  <div class="sub">整蛊跑酷 — 联机对抗</div>
+
+  <div id="lobbyMenu">
+    <button class="btn btn-green" id="hostBtn">创建房间</button>
+    <button class="btn btn-blue" id="joinBtn">加入房间</button>
+  </div>
+
+  <div id="hostPanel" style="display:none;text-align:center">
+    <div style="color:rgba(255,255,255,.5);font-size:13px">房间码</div>
+    <div class="room-code" id="roomCode"></div>
+    <div class="info">把房间码发给朋友</div>
+    <div id="peerStatus" style="color:#3ddc84;margin-top:10px">等待玩家加入...</div>
+    <div id="roleSelect" style="display:none;margin-top:20px">
+      <div style="margin-bottom:10px;font-size:14px">选择你的角色</div>
+      <div class="role-box" id="roleRunner" onclick="selectRole('runner')">
+        <div class="role-icon">🏃</div>
+        <div class="role-name">Runner</div>
+        <div class="role-desc">跑酷逃生！躲避机关</div>
+      </div>
+      <div class="role-box" id="roleTroller" onclick="selectRole('troller')">
+        <div class="role-icon">🤡</div>
+        <div class="role-name">Troller</div>
+        <div class="role-desc">控制机关！整蛊对手</div>
+      </div>
+      <br>
+      <button class="btn btn-orange" id="startBtn" style="display:none;margin-top:15px" onclick="startGame()">开始游戏</button>
+    </div>
+  </div>
+
+  <div id="joinPanel" style="display:none;text-align:center">
+    <input id="joinInput" placeholder="输入房间码">
+    <button class="btn btn-blue" id="joinGoBtn">加入</button>
+    <div id="joinStatus" style="margin-top:8px;color:rgba(255,255,255,.4);font-size:12px"></div>
+    <div id="clientRole" style="display:none;margin-top:20px">
+      <div style="margin-bottom:10px;font-size:14px">选择你的角色</div>
+      <div class="role-box" id="roleRunner2" onclick="selectRole('runner')">
+        <div class="role-icon">🏃</div>
+        <div class="role-name">Runner</div>
+        <div class="role-desc">跑酷逃生！躲避机关</div>
+      </div>
+      <div class="role-box" id="roleTroller2" onclick="selectRole('troller')">
+        <div class="role-icon">🤡</div>
+        <div class="role-name">Troller</div>
+        <div class="role-desc">控制机关！整蛊对手</div>
+      </div>
+      <div class="info" style="margin-top:10px">等待主机开始...</div>
+    </div>
+  </div>
+</div>
+
+<div id="gameHud" style="display:none">
+  <div class="hud-item" id="hudRole"></div>
+  <div class="hud-item" id="hudLevel">关卡 1</div>
+  <div class="hud-item" id="hudScore">分数: 0</div>
+  <div class="hud-item" id="hudTimer">时间: 60</div>
+</div>
+
+<canvas id="c"></canvas>
+
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+const C=document.getElementById('c');const ctx=C.getContext('2d');
+const W=960,H=540;C.width=W;C.height=H;
+C.style.width=Math.min(innerWidth-20,960)+'px';
+C.style.height=Math.min(innerHeight-20,540)+'px';
+
+// ═══════ 网络 ═══════
+let peer=null,conn=null,isHost=false,myRole='',otherRole='',connected=false;
+
+function genCode(){return Math.random().toString(36).substr(2,5).toUpperCase();}
+
+document.getElementById('hostBtn').onclick=()=>{
+  document.getElementById('lobbyMenu').style.display='none';
+  document.getElementById('hostPanel').style.display='block';
+  const code=genCode();
+  isHost=true;
+  peer=new Peer('tvr-'+code);
+  peer.on('open',()=>{document.getElementById('roomCode').textContent=code;});
+  peer.on('connection',(c)=>{
+    conn=c;connected=true;
+    document.getElementById('peerStatus').textContent='玩家已连接!';
+    document.getElementById('roleSelect').style.display='block';
+    conn.on('data',handleData);
+    conn.on('close',()=>{connected=false;});
+  });
+  peer.on('error',(e)=>{document.getElementById('roomCode').textContent='创建失败';});
+};
+
+document.getElementById('joinBtn').onclick=()=>{
+  document.getElementById('lobbyMenu').style.display='none';
+  document.getElementById('joinPanel').style.display='block';
+};
+
+document.getElementById('joinGoBtn').onclick=()=>{
+  const code=document.getElementById('joinInput').value.trim().toUpperCase();
+  if(!code){document.getElementById('joinStatus').textContent='请输入房间码';return;}
+  peer=new Peer('tvr-client-'+Math.random().toString(36).substr(2,4));
+  peer.on('open',()=>{
+    document.getElementById('joinStatus').textContent='连接中...';
+    conn=peer.connect('tvr-'+code);
+    conn.on('open',()=>{
+      connected=true;
+      document.getElementById('joinStatus').textContent='已连接!';
+      document.getElementById('clientRole').style.display='block';
+    });
+    conn.on('data',handleData);
+    conn.on('error',()=>{document.getElementById('joinStatus').textContent='连接失败';});
+  });
+};
+
+function selectRole(role){
+  myRole=role;
+  document.querySelectorAll('.role-box').forEach(b=>b.classList.remove('selected'));
+  if(role==='runner'){
+    document.getElementById('roleRunner').classList.add('selected');
+    document.getElementById('roleRunner2').classList.add('selected');
+  }else{
+    document.getElementById('roleTroller').classList.add('selected');
+    document.getElementById('roleTroller2').classList.add('selected');
+  }
+  if(conn&&conn.open)conn.send({type:'role',role:role});
+  if(isHost)document.getElementById('startBtn').style.display=otherRole?'inline-block':'none';
+}
+
+function handleData(data){
+  if(data.type==='role'){
+    otherRole=data.role;
+    if(isHost)document.getElementById('startBtn').style.display=myRole?'inline-block':'none';
+  }
+  if(data.type==='start'){
+    myRole=data.yourRole;
+    beginGame();
+  }
+  if(data.type==='runner'){
+    // Runner位置更新
+    remoteRunner.x=data.x;remoteRunner.y=data.y;remoteRunner.vy=data.vy;
+    remoteRunner.onGround=data.onGround;remoteRunner.dead=data.dead;
+    remoteRunner.frame=data.frame;
+  }
+  if(data.type==='trap'){
+    // Troller激活机关
+    activateTrap(data.id,data.action);
+  }
+  if(data.type==='nextLevel'){
+    currentLevel++;loadLevel(currentLevel);
+  }
+  if(data.type==='runnerDied'){
+    trollerScore++;
+  }
+  if(data.type==='runnerWin'){
+    runnerScore++;
+  }
+}
+
+function startGame(){
+  if(!myRole||!otherRole)return;
+  // 确保两个人角色不同
+  let yourRole=otherRole;
+  if(myRole===otherRole){yourRole=myRole==='runner'?'troller':'runner';}
+  conn.send({type:'start',yourRole:yourRole});
+  beginGame();
+}
+
+// ═══════ 游戏状态 ═══════
+let gameActive=false,currentLevel=0,levelTimer=60;
+let runnerScore=0,trollerScore=0;
+let platforms=[],traps=[],decorations=[];
+let camera={x:0};
+
+const runner={x:50,y:0,vx:0,vy:0,w:24,h:32,onGround:false,dead:false,frame:0,frameT:0,respawnT:0,finished:false};
+const remoteRunner={x:50,y:0,vy:0,onGround:false,dead:false,frame:0};
+const keys={};
+
+document.addEventListener('keydown',e=>{keys[e.code]=true;});
+document.addEventListener('keyup',e=>{keys[e.code]=false;});
+
+// 鼠标(Troller用)
+let mouse={x:0,y:0,down:false};
+C.addEventListener('mousemove',e=>{
+  const r=C.getBoundingClientRect();
+  mouse.x=(e.clientX-r.left)/r.width*W;
+  mouse.y=(e.clientY-r.top)/r.height*H;
+});
+C.addEventListener('mousedown',e=>{mouse.down=true;handleTrollerClick();});
+C.addEventListener('mouseup',()=>{mouse.down=false;});
+
+// ═══════ 关卡数据 ═══════
+function loadLevel(idx){
+  platforms=[];traps=[];decorations=[];
+  runner.x=50;runner.y=200;runner.vx=0;runner.vy=0;runner.dead=false;runner.finished=false;
+  levelTimer=60;
+
+  const levels=[
+    // 关卡1: 简单跳台
+    ()=>{
+      platforms.push({x:0,y:H-40,w:200,h:40,type:'ground'});
+      platforms.push({x:250,y:H-80,w:120,h:20,type:'normal'});
+      platforms.push({x:420,y:H-130,w:100,h:20,type:'normal'});
+      platforms.push({x:570,y:H-100,w:80,h:20,type:'normal'});
+      platforms.push({x:700,y:H-150,w:100,h:20,type:'normal'});
+      platforms.push({x:860,y:H-120,w:80,h:20,type:'normal'});
+      platforms.push({x:1000,y:H-80,w:120,h:20,type:'normal'});
+      platforms.push({x:1180,y:H-140,w:100,h:20,type:'normal'});
+      platforms.push({x:1350,y:H-100,w:150,h:40,type:'finish'});
+      // 机关
+      traps.push({id:0,x:250,y:H-82,w:120,h:22,type:'fakePlatform',active:false,platIdx:1});
+      traps.push({id:1,x:570,y:H-102,w:80,h:22,type:'fakePlatform',active:false,platIdx:3});
+      traps.push({id:2,x:700,y:H-180,w:30,h:30,type:'spikes',active:false});
+      traps.push({id:3,x:1000,y:H-82,w:120,h:22,type:'fakePlatform',active:false,platIdx:6});
+    },
+    // 关卡2: 移动平台
+    ()=>{
+      platforms.push({x:0,y:H-40,w:150,h:40,type:'ground'});
+      platforms.push({x:200,y:H-100,w:80,h:20,type:'normal'});
+      platforms.push({x:350,y:H-140,w:100,h:20,type:'moving',moveX:60,speed:1.5,origX:350});
+      platforms.push({x:530,y:H-100,w:60,h:20,type:'normal'});
+      platforms.push({x:650,y:H-160,w:80,h:20,type:'normal'});
+      platforms.push({x:800,y:H-120,w:100,h:20,type:'moving',moveX:80,speed:2,origX:800});
+      platforms.push({x:980,y:H-80,w:60,h:20,type:'normal'});
+      platforms.push({x:1100,y:H-140,w:80,h:20,type:'normal'});
+      platforms.push({x:1250,y:H-100,w:60,h:20,type:'normal'});
+      platforms.push({x:1400,y:H-60,w:150,h:40,type:'finish'});
+      traps.push({id:0,x:200,y:H-102,w:80,h:22,type:'fakePlatform',active:false,platIdx:1});
+      traps.push({id:1,x:650,y:H-162,w:80,h:22,type:'fakePlatform',active:false,platIdx:4});
+      traps.push({id:2,x:530,y:H-130,w:30,h:30,type:'spikes',active:false});
+      traps.push({id:3,x:980,y:H-82,w:60,h:22,type:'fakePlatform',active:false,platIdx:6});
+      traps.push({id:4,x:1100,y:H-170,w:30,h:30,type:'spikes',active:false});
+    },
+    // 关卡3: 硬核
+    ()=>{
+      platforms.push({x:0,y:H-40,w:120,h:40,type:'ground'});
+      platforms.push({x:160,y:H-90,w:50,h:15,type:'small'});
+      platforms.push({x:260,y:H-140,w:50,h:15,type:'small'});
+      platforms.push({x:360,y:H-100,w:50,h:15,type:'small'});
+      platforms.push({x:450,y:H-160,w:80,h:15,type:'moving',moveX:50,speed:2,origX:450});
+      platforms.push({x:600,y:H-120,w:50,h:15,type:'small'});
+      platforms.push({x:720,y:H-170,w:60,h:15,type:'normal'});
+      platforms.push({x:850,y:H-130,w:50,h:15,type:'small'});
+      platforms.push({x:960,y:H-180,w:80,h:15,type:'moving',moveX:70,speed:2.5,origX:960});
+      platforms.push({x:1100,y:H-140,w:50,h:15,type:'small'});
+      platforms.push({x:1220,y:H-100,w:50,h:15,type:'small'});
+      platforms.push({x:1350,y:H-60,w:150,h:40,type:'finish'});
+      for(let i=1;i<=10;i++){
+        if(i%2===0)traps.push({id:traps.length,x:platforms[i].x,y:platforms[i].y-2,w:platforms[i].w,h:17,type:'fakePlatform',active:false,platIdx:i});
+      }
+      traps.push({id:traps.length,x:600,y:H-150,w:25,h:25,type:'spikes',active:false});
+      traps.push({id:traps.length,x:850,y:H-160,w:25,h:25,type:'spikes',active:false});
+    }
+  ];
+
+  if(idx<levels.length)levels[idx]();
+  else{
+    // 循环关卡但加难度
+    levels[idx%levels.length]();
+  }
+}
+
+// ═══════ 机关操作(Troller) ═══════
+function handleTrollerClick(){
+  if(myRole!=='troller'||!gameActive)return;
+  const mx=mouse.x+camera.x, my=mouse.y;
+  for(const t of traps){
+    const tx=t.x-camera.x,ty=t.y;
+    if(mouse.x>tx&&mouse.x<tx+t.w&&mouse.y>ty&&mouse.y<ty+t.h){
+      t.active=!t.active;
+      if(conn&&conn.open)conn.send({type:'trap',id:t.id,action:t.active});
+      break;
+    }
+  }
+}
+
+function activateTrap(id,action){
+  const t=traps.find(tr=>tr.id===id);
+  if(t)t.active=action;
+}
+
+// ═══════ 游戏开始 ═══════
+function beginGame(){
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('gameHud').style.display='flex';
+  document.getElementById('hudRole').textContent=myRole==='runner'?'🏃 Runner':'🤡 Troller';
+  gameActive=true;
+  currentLevel=0;
+  runnerScore=0;trollerScore=0;
+  loadLevel(0);
+}
+
+// ═══════ 更新 ═══════
+function update(dt){
+  if(!gameActive)return;
+
+  // 计时器
+  levelTimer-=dt;
+  document.getElementById('hudTimer').textContent='时间: '+Math.ceil(Math.max(0,levelTimer));
+  document.getElementById('hudScore').textContent=myRole==='runner'?'通关: '+runnerScore:'击杀: '+trollerScore;
+  document.getElementById('hudLevel').textContent='关卡 '+(currentLevel+1);
+
+  if(levelTimer<=0&&!runner.dead){
+    runner.dead=true;runner.respawnT=2;
+    trollerScore++;
+    if(conn&&conn.open)conn.send({type:'runnerDied'});
+  }
+
+  // 移动平台
+  for(const p of platforms){
+    if(p.type==='moving'){
+      p.x=p.origX+Math.sin(Date.now()/1000*p.speed)*p.moveX;
+    }
+  }
+
+  // Runner逻辑
+  const r=myRole==='runner'?runner:remoteRunner;
+
+  if(myRole==='runner'){
+    if(!runner.dead&&!runner.finished){
+      // 移动
+      if(keys['ArrowLeft']||keys['KeyA'])runner.vx=-5;
+      else if(keys['ArrowRight']||keys['KeyD'])runner.vx=5;
+      else runner.vx*=.7;
+      // 跳跃
+      if((keys['ArrowUp']||keys['KeyW']||keys['Space'])&&runner.onGround){runner.vy=-12;runner.onGround=false;}
+      // 重力
+      runner.vy+=.5;
+      runner.x+=runner.vx;runner.y+=runner.vy;
+      // 动画
+      runner.frameT+=dt;if(runner.frameT>.15){runner.frame++;runner.frameT=0;}
+
+      // 平台碰撞
+      runner.onGround=false;
+      for(let i=0;i<platforms.length;i++){
+        const p=platforms[i];
+        // 检查是否被假平台机关激活(消失)
+        let hidden=false;
+        for(const t of traps){
+          if(t.type==='fakePlatform'&&t.platIdx===i&&t.active)hidden=true;
+        }
+        if(hidden)continue;
+        if(runner.x+runner.w>p.x&&runner.x<p.x+p.w&&
+           runner.y+runner.h>p.y&&runner.y+runner.h<p.y+p.h+10&&runner.vy>=0){
+          runner.y=p.y-runner.h;runner.vy=0;runner.onGround=true;
+          // 终点检测
+          if(p.type==='finish'){
+            runner.finished=true;runnerScore++;
+            if(conn&&conn.open)conn.send({type:'runnerWin'});
+            setTimeout(()=>{
+              currentLevel++;loadLevel(currentLevel);
+              if(conn&&conn.open)conn.send({type:'nextLevel'});
+            },1500);
+          }
+        }
+      }
+
+      // 尖刺碰撞
+      for(const t of traps){
+        if(t.type==='spikes'&&t.active){
+          if(runner.x+runner.w>t.x&&runner.x<t.x+t.w&&runner.y+runner.h>t.y&&runner.y<t.y+t.h){
+            runner.dead=true;runner.respawnT=2;
+            trollerScore++;
+            if(conn&&conn.open)conn.send({type:'runnerDied'});
+          }
+        }
+      }
+
+      // 掉下去
+      if(runner.y>H+50){
+        runner.dead=true;runner.respawnT=2;
+        trollerScore++;
+        if(conn&&conn.open)conn.send({type:'runnerDied'});
+      }
+
+      // 同步位置
+      if(conn&&conn.open){
+        conn.send({type:'runner',x:runner.x,y:runner.y,vy:runner.vy,onGround:runner.onGround,dead:runner.dead,frame:runner.frame});
+      }
+    }else if(runner.dead){
+      runner.respawnT-=dt;
+      if(runner.respawnT<=0){
+        runner.x=50;runner.y=200;runner.vx=0;runner.vy=0;runner.dead=false;
+        levelTimer=60;
+      }
+    }
+  }
+
+  // 相机跟随Runner
+  const targetCam=r.x-W/3;
+  camera.x+=(targetCam-camera.x)*.08;
+  if(camera.x<0)camera.x=0;
+}
+
+// ═══════ 绘制 ═══════
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  if(!gameActive){
+    // 标题动画
+    ctx.fillStyle='#0a0a2e';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 24px sans-serif';ctx.textAlign='center';
+    ctx.fillText('等待开始...',W/2,H/2);
+    ctx.textAlign='left';
+    return;
+  }
+
+  // 背景
+  const bgGrad=ctx.createLinearGradient(0,0,0,H);
+  bgGrad.addColorStop(0,'#1a1a3e');bgGrad.addColorStop(1,'#0a0a1e');
+  ctx.fillStyle=bgGrad;ctx.fillRect(0,0,W,H);
+
+  // 星星
+  for(let i=0;i<40;i++){
+    const sx=((i*97+camera.x*.1)%W+W)%W,sy=(i*53)%H;
+    ctx.fillStyle=`rgba(255,255,255,${.2+Math.sin(Date.now()*.001+i)*.15})`;
+    ctx.fillRect(sx,sy,1.5,1.5);
+  }
+
+  // 平台
+  for(let i=0;i<platforms.length;i++){
+    const p=platforms[i];
+    let hidden=false;
+    for(const t of traps){if(t.type==='fakePlatform'&&t.platIdx===i&&t.active)hidden=true;}
+
+    const px=p.x-camera.x;
+    if(px<-200||px>W+200)continue;
+
+    if(hidden){
+      // 消失的平台(Troller能看到虚影)
+      if(myRole==='troller'){
+        ctx.fillStyle='rgba(255,100,100,.15)';ctx.fillRect(px,p.y,p.w,p.h);
+        ctx.strokeStyle='rgba(255,100,100,.3)';ctx.setLineDash([4,4]);ctx.strokeRect(px,p.y,p.w,p.h);ctx.setLineDash([]);
+      }
+      continue;
+    }
+
+    if(p.type==='finish'){
+      ctx.fillStyle='#ffd740';ctx.fillRect(px,p.y,p.w,p.h);
+      ctx.fillStyle='#ffee88';ctx.fillRect(px+2,p.y+2,p.w-4,3);
+      ctx.fillStyle='rgba(255,215,0,.3)';
+      ctx.beginPath();ctx.arc(px+p.w/2,p.y-10,20+Math.sin(Date.now()*.005)*5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+      ctx.fillText('🏁 终点',px+p.w/2,p.y-5);ctx.textAlign='left';
+    }else if(p.type==='ground'){
+      ctx.fillStyle='#3a5a3a';ctx.fillRect(px,p.y,p.w,p.h);
+      ctx.fillStyle='#4a7a4a';ctx.fillRect(px,p.y,p.w,4);
+      // 草
+      for(let g=0;g<p.w;g+=8){ctx.fillStyle='#5a9a5a';ctx.fillRect(px+g,p.y-3,3,5);}
+    }else{
+      ctx.fillStyle=p.type==='moving'?'#4488aa':'#556677';
+      ctx.fillRect(px,p.y,p.w,p.h);
+      ctx.fillStyle=p.type==='moving'?'#55aacc':'#6688aa';
+      ctx.fillRect(px+1,p.y+1,p.w-2,3);
+      // 螺丝
+      ctx.fillStyle='#333';
+      ctx.fillRect(px+3,p.y+p.h/2-1,2,2);ctx.fillRect(px+p.w-5,p.y+p.h/2-1,2,2);
+    }
+  }
+
+  // 机关
+  for(const t of traps){
+    const tx=t.x-camera.x;
+    if(tx<-100||tx>W+100)continue;
+
+    if(t.type==='spikes'){
+      if(t.active){
+        // 激活的尖刺
+        ctx.fillStyle='#ff4444';
+        for(let i=0;i<t.w;i+=8){
+          ctx.beginPath();ctx.moveTo(tx+i,t.y+t.h);ctx.lineTo(tx+i+4,t.y);ctx.lineTo(tx+i+8,t.y+t.h);ctx.fill();
+        }
+      }else if(myRole==='troller'){
+        // Troller能看到隐藏的尖刺
+        ctx.fillStyle='rgba(255,100,100,.2)';
+        ctx.fillRect(tx,t.y,t.w,t.h);
+        ctx.fillStyle='rgba(255,100,100,.4)';ctx.font='10px sans-serif';
+        ctx.fillText('⚠',tx+t.w/2-5,t.y+t.h/2+3);
+      }
+    }
+
+    // Troller的可点击提示
+    if(myRole==='troller'){
+      const mx2=mouse.x,my2=mouse.y;
+      if(mx2>tx&&mx2<tx+t.w&&my2>t.y&&my2<t.y+t.h){
+        ctx.strokeStyle='rgba(255,255,0,.6)';ctx.lineWidth=2;
+        ctx.strokeRect(tx-2,t.y-2,t.w+4,t.h+4);ctx.lineWidth=1;
+        // 提示文字
+        ctx.fillStyle='rgba(255,255,0,.8)';ctx.font='11px sans-serif';
+        ctx.fillText('点击'+( t.active?'关闭':'激活'),tx,t.y-8);
+      }
+    }
+  }
+
+  // Runner
+  const r=myRole==='runner'?runner:remoteRunner;
+  if(!r.dead){
+    const rx=r.x-camera.x,ry=r.y;
+    // 身体
+    ctx.fillStyle='#44aaff';
+    ctx.fillRect(rx+4,ry+8,16,14);
+    // 头
+    ctx.fillStyle='#ffd5a5';
+    ctx.fillRect(rx+6,ry,12,10);
+    // 眼睛
+    ctx.fillStyle='#222';
+    ctx.fillRect(rx+9,ry+3,2,3);ctx.fillRect(rx+14,ry+3,2,3);
+    // 腿(跑步动画)
+    const legOff=Math.sin(r.frame*.5)*4;
+    ctx.fillStyle='#2266aa';
+    ctx.fillRect(rx+6,ry+22,5,10+legOff);
+    ctx.fillRect(rx+13,ry+22,5,10-legOff);
+    // 鞋
+    ctx.fillStyle='#fff';
+    ctx.fillRect(rx+5,ry+31+legOff,7,3);
+    ctx.fillRect(rx+12,ry+31-legOff,7,3);
+    // 帽子
+    ctx.fillStyle='#e74c3c';
+    ctx.fillRect(rx+4,ry-2,16,4);ctx.fillRect(rx+14,ry-4,8,3);
+  }else{
+    // 死亡特效
+    const rx=r.x-camera.x;
+    ctx.fillStyle='rgba(255,0,0,.5)';ctx.font='20px sans-serif';ctx.textAlign='center';
+    ctx.fillText('💀',rx+12,r.y+16);ctx.textAlign='left';
+    if(myRole==='runner'){
+      ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='16px sans-serif';ctx.textAlign='center';
+      ctx.fillText(Math.ceil(runner.respawnT)+'秒后复活',W/2,H/2);ctx.textAlign='left';
+    }
+  }
+
+  // Runner到达终点
+  if(runner.finished||remoteRunner.finished){
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffd740';ctx.font='bold 32px sans-serif';ctx.textAlign='center';
+    ctx.fillText('🏁 Runner 通关!',W/2,H/2-20);
+    ctx.fillStyle='#fff';ctx.font='16px sans-serif';
+    ctx.fillText('进入下一关...',W/2,H/2+20);ctx.textAlign='left';
+  }
+
+  // Troller操作提示
+  if(myRole==='troller'&&!runner.dead&&!runner.finished){
+    ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='12px sans-serif';
+    ctx.fillText('点击机关整蛊Runner! 红框=假平台 ⚠=尖刺',10,20);
+  }
+
+  // 倒计时警告
+  if(levelTimer<10&&levelTimer>0){
+    ctx.fillStyle=`rgba(255,0,0,${Math.sin(Date.now()*.01)*.3+.3})`;
+    ctx.font='bold 28px sans-serif';ctx.textAlign='center';
+    ctx.fillText('⚠ 时间不多了!',W/2,80);ctx.textAlign='left';
+  }
+}
+
+// ═══════ 主循环 ═══════
+let lastT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min((t-lastT)/1000,.05);lastT=t;
+  update(dt);draw();
+}
+loop(0);
+</script>
+</body>
+</html>
